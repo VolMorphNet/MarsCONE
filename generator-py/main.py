@@ -4,7 +4,7 @@ MarsCONE Generator CLI
 This module initializes and runs the MarsCONE data processing pipeline,
 including DEM cropping, transect generation, and profile creation.
 
-Authors: Jakub Śledziowski, Bartosz Pieterek, Thomas Kuhn
+Authors: Jakub Śledziowski, Bartosz Pieterek, Thomas Jones
 License: MIT
 """
 

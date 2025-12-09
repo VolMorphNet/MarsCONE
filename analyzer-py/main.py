@@ -5,7 +5,7 @@ Performs morphometric and geometric analysis of cone-like landforms.
 Calculates metrics such as height, width, volume, and shape,
 and exports aggregated results as CSV and GeoPackage files.
 
-Authors: Jakub Śledziowski, Bartosz Pieterek, Thomas Kuhn
+Authors: Jakub Śledziowski, Bartosz Pieterek, Thomas Jones
 License: MIT
 """
 

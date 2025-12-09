@@ -4,7 +4,7 @@ MarsCONE Finder CLI
 Detects characteristic points (bottom, top, center) on terrain transects for cone-like landforms
 using elevation profiles and signal analysis.
 
-Authors: Jakub Śledziowski, Bartosz Pieterek, Thomas Kuhn
+Authors: Jakub Śledziowski, Bartosz Pieterek, Thomas Jones
 License: MIT
 """
 
