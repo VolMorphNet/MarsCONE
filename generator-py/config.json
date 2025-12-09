@@ -1,0 +1,35 @@
+{
+    "paths": {
+      "base": "../data/test_set",
+      "input": {
+        "masks": "input/crop",
+        "dem": "input/dem",
+        "points": "input/points"
+      },
+      "output": {
+        "dem_cropped": "output/generator/dem/cropped",
+        "dem_slope": "output/generator/dem/slope",
+        "profiles_whole": "output/generator/profiles/whole",
+        "profiles_cropped": "output/generator/profiles/cropped"
+      },
+      "db": "db/database.gpkg"
+    },
+    "db_layers": {
+      "points": "points",
+      "transects": "transects", 
+      "profiles": "profiles",
+      "buffers": "buffers",
+      "masks": "cones"
+    },
+    "crs": "+proj=eqc +lat_ts=0 +lat_0=0 +lon_0=146.79 +x_0=0 +y_0=0 +R=3396190 +units=m +no_defs=True",
+    "parameters": {
+      "transect_length": 300,
+      "profile_resolution": 1,
+      "buffer_width": 300,
+      "mode": "auto",
+      "transect_angle_step": 45
+    }
+  }
+  
+
+  

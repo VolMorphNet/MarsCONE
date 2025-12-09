@@ -1,0 +1,26 @@
+{
+    "paths": {
+      "base": "../data/test_set",
+      "input": {
+        "profiles": "output/generator/profiles/whole",
+        "points": "output/finder",
+        "centers": "input/points"
+      },
+      "output": {
+        "shapes": "output/analyzer/shapes",
+        "csv": "output/analyzer/results.csv"
+      },
+      "db": "db/database.gpkg"
+    },
+    "csv": {
+      "sep": ";"
+    },
+    "shape": {
+      "crs": "+proj=eqc +lat_ts=0 +lat_0=0 +lon_0=146.79 +x_0=0 +y_0=0 +R=3396190 +units=m +no_defs=True"
+    },
+    "selected_profiles": [],
+    "buffer_distance": 1.0,
+    "export_geojson": false,
+    "export_summary_gpkg": true
+  }
+  

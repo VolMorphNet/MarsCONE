@@ -1,0 +1,17 @@
+{
+    "paths": {
+      "base": "../data/test_set",
+      "db": "db/database.gpkg",
+      "output": {
+        "results_csv": "output/finder/finder_method.csv"
+      }
+    },
+    "db_layers": {
+      "profiles": "profiles",
+      "points": "points"
+    },
+    "classification": {
+      "shape_threshold": 1
+    }    
+  }
+  
