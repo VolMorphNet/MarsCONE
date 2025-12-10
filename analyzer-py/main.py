@@ -306,12 +306,12 @@ def main():
         cone_metrics.append({
             "cone_id": cone_id,
             "base_area": base_area,
-            "base_major_diameter": major_diameter_b,
+            "base_major_diameter (WCO)": major_diameter_b,
             "base_minor_diameter": minor_diameter_b,
             "base_center_x": xc_b,
             "base_center_y": yc_b,
             "base_angle_deg": np.degrees(theta_b),
-            "top_major_diameter": major_diameter_t,
+            "top_major_diameter (WCR)": major_diameter_t,
             "top_minor_diameter": minor_diameter_t,
             "top_center_x": xc_t,
             "top_center_y": yc_t,
@@ -320,8 +320,8 @@ def main():
             "base_ellipticity": ellipticity,
             "elongation_azimuth": azimuth,
             "avg_slope_deg": avg_slope,
-            "H_WB_ratio": h_wb_ratio,
-            "WCR_WB_ratio": wcr_wb_ratio
+            "H_WCO_ratio": h_wb_ratio,
+            "WCR_WCO_ratio": wcr_wb_ratio
         })
 
     gdf_bottom_clean = gpd.GeoDataFrame(

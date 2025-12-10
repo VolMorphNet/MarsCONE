@@ -1,6 +1,8 @@
 # MarsCONE
 
-**MarsCONE** is a command-line tool for **automatic morphometric analysis of cone-like landforms** (e.g. volcanic cones, impact-related cones) from digital elevation models (DEMs).
+<img src="https://c5studio.pl/marscone/marscone-logo.png" width="200px">
+
+**MarsCONE** is a command-line tool for **automatic morphometric analysis of cone-like landforms** (e.g. volcanic cones, impact-related features) using digital elevation models (DEMs).
 
 The workflow consists of three main modules:
 
@@ -101,8 +103,44 @@ test_set/
       └─ shapes/             # GeoJSON / GPKG outputs
 ```
 
-## 4. Configuration files
+### 3.1. Input data
+- DEM file should be in geotif format with coordinates (CRS)
+- The shapefile with the same CRS should contain a vector layer of points with the centres of the cones (see example in demo data (section 3.2.)).<br/>
+**Important!**<br/>
+Each point must have a separate ID. This ID will be used to define the results in the further process. 
 
+![MarsCONE input data](https://c5studio.pl/marscone/input-data.png)
+
+### 3.2. Downloading the demo dataset
+A small demo dataset (`test_set`) is provided as a ZIP archive hosted externally
+to keep the repository size reasonable.
+
+From the repository root, run:
+
+```bash
+conda activate marscone
+python download_demo_data.py
+```
+This will:
+	•	create a local data/ directory (if it does not exist),
+	•	download test_set.zip from the configured URL,
+	•	unpack it into data/test_set,
+	•	remove the ZIP file after successful extraction.
+
+After this step, the folder structure will look like:
+```bash
+data/
+└─ test_set/
+   ├─ input/
+   │  ├─ dem/
+   │  │  └─ DTEEC_043987_1825_035521_1825_A01.tif
+   │  └─ points/
+   │     └─ cones.shp
+   └─ output/
+```
+You can then run the full MarsCONE workflow on this demo set using the default config.json files for Generator, Finder and Analyzer
+
+## 4. Configuration files
 ### 4.1. Generator configuration (generator-py/config.json)
 
 This config controls DEM cropping, transect generation, and profile extraction.
@@ -111,7 +149,7 @@ Example:
 ```bash
 {
   "paths": {
-    "base": "../../../data/set_2_64",
+    "base": "../data/test_set",
     "input": {
       "masks": "input/crop",
       "dem": "input/dem",
@@ -132,13 +170,13 @@ Example:
     "buffers": "buffers",
     "masks": "cones"
   },
-  "crs": "+proj=eqc +lat_ts=25 +lat_0=0 +lon_0=170.58 +x_0=0 +y_0=0 +R=3392593.6110435 +units=m +no_defs=True",
+  "crs": "+proj=eqc +lat_ts=0 +lat_0=0 +lon_0=146.79 +x_0=0 +y_0=0 +R=3396190 +units=m +no_defs=True",
   "parameters": {
-    "transect_length": 250,
+    "transect_length": 300,
     "profile_resolution": 1,
-    "buffer_width": 250,
+    "buffer_width": 300,
     "mode": "auto",
-    "transect_angle_step": 5.63
+    "transect_angle_step": 45
   }
 }
 ```
@@ -146,7 +184,7 @@ Example:
 **Key elements:** 
 - paths.base
 Root directory for all data related to this run (DEM, masks, outputs, DB).
-In the example, the module will operate on data/set_2_64.
+In this example, the module will operate on data/test_set.
 - paths.input
     - masks: polygon masks outlining cones (input/crop inside paths.base)
     - dem: DEM rasters (input/dem)
@@ -154,7 +192,7 @@ In the example, the module will operate on data/set_2_64.
 - paths.output
     - dem_cropped: where cropped DEM tiles are stored
     - dem_slope: optional slope rasters
-    - profiles_whole: full profiles for each transect
+    - profiles_whole: full elevation for each transect
     - profiles_cropped: cropped profiles if used by your workflow
 - paths.db
     Path to the GeoPackage database, relative to paths.base (here db/database.gpkg).
@@ -183,7 +221,7 @@ Example:
 ``` bash
 {
   "paths": {
-    "base": "../../../data/set_2_64",
+    "base": "../data/test_set",
     "db": "db/database.gpkg",
     "output": {
       "results_csv": "output/finder/finder_method.csv"
@@ -192,9 +230,6 @@ Example:
   "db_layers": {
     "profiles": "profiles",
     "points": "points"
-  },
-  "classification": {
-    "shape_threshold": 1
   }
 }
 ```
@@ -210,10 +245,6 @@ Example:
 - db_layers
     - profiles: name of the profile line layer created/populated by Generator
     - points: name of the point layer where Finder will store detected points
-	- classification.shape_threshold<br/>
-    Threshold used inside Finder/Analyzer for simple shape classification (e.g. flat/convex/concave).
-    Value 1 here is an example; you may adjust this based on your data.
-
 
 ### 4.3. Analyzer configuration (analyzer-py/config.json)
 
@@ -223,7 +254,7 @@ Example:
 ``` bash
 {
   "paths": {
-    "base": "../../../data/set_2_64",
+    "base": "../data/test_set",
     "input": {
       "profiles": "output/generator/profiles/whole",
       "points": "output/finder",
@@ -239,7 +270,7 @@ Example:
     "sep": ";"
   },
   "shape": {
-    "crs": "+proj=eqc +lat_ts=25 +lat_0=0 +lon_0=170.58 +x_0=0 +y_0=0 +R=3392593.6110435 +units=m +no_defs=True"
+    "crs": "+proj=eqc +lat_ts=0 +lat_0=0 +lon_0=146.79 +x_0=0 +y_0=0 +R=3396190 +units=m +no_defs=True"
   },
   "selected_profiles": [],
   "buffer_distance": 1.0,
@@ -265,6 +296,16 @@ Example:
     CSV separator used when reading/writing profile and results tables (here ";").
 - shape.crs<br/>
     CRS used by Analyzer, should match the projection of DEM and vector layers (same Mars equirectangular projection as in Generator).
+- classification.shape_threshold<br/>
+    Threshold used for simple shape classification (flat/convex/concave). This value should depend on DEM resolution - in test set 1px = 1m. <br/>
+    Analyzer compares the mean elevation of the crater centre (`center_elev`) to the mean rim elevation (`top_elev`) using this parameter.
+    - if `|center_elev − top_elev| < shape_threshold`  
+    → **`flat`**
+    - if `center_elev < top_elev` and the absolute difference is ≥ `shape_threshold`  
+    → **`concave`** (well-developed crater floor below the rim)
+    - if `center_elev > top_elev` and the absolute difference is ≥ `shape_threshold`  
+    → **`convex`** (domed summit without a clear depression)<br/>
+    If no `shape_threshold` is provided in the Analyzer config, the default value `0.5` m is used.
 - selected_profiles<br/>
     List of profile IDs to analyze (empty list means “use all profiles”).
 - buffer_distance<br/>
@@ -284,11 +325,10 @@ The recommended workflow is:
 3.	Analyzer – compute cone-level metrics and export GIS-ready layers
 
 Because each module has its own config.json, you can:
--	run modules independently (even on different data sets),
--	but you must keep the path chain consistent:
--	Analyzer’s paths.input.profiles must point to Generator’s profiles_whole output
--	Analyzer’s paths.input.points must point to Finder’s output folder with finder_method.csv
--	all modules should share the same paths.base and db paths for a given project
+-	run modules independently (even on different data sets), but you must keep the path chain consistent:
+    -	Analyzer’s paths.input.profiles must point to Generator’s profiles_whole output
+    -	Analyzer’s paths.input.points must point to Finder’s output folder with finder_method.csv
+    -	all modules should share the same paths.base and db paths for a given project
 
 ## 6. Module 1 – Generator
 
@@ -421,7 +461,7 @@ During the Finder step, MarsCONE detects three characteristic points along each 
 - **center** – reference point near the cone interior.
 
 For each detected point, the algorithm stores a `status` flag.  
-This flag describes **which branch of the detection logic produced the final point** and is intended for QA/QC, debugging and method comparison (e.g. when inspecting problematic cones).
+This flag describes **which branch of the detection logic produced the final point** and is intended for Quality Contol, debugging and method comparison (e.g. when inspecting problematic cones).
 
 In general, the workflow is:
 
@@ -430,7 +470,44 @@ In general, the workflow is:
 3. If this fails or is ambiguous, fall back to a series of **hierarchical fallbacks**.
 4. If no valid candidate can be found, the algorithm may keep the original reference point (e.g. the top) and mark the status as a fallback.
 
-#### Status code summary
+#### How the adaptive slope-based method works in Finder
+
+- **Top detection (`detect_top_by_drop`)**
+  - The algorithm analyses the elevation profile between the detected bottom and the geometric centre.
+  - It uses `scipy.signal.find_peaks` to locate local maxima that:
+    - are high enough relative to the segment (`height` threshold),
+    - have sufficient *prominence* (stand out from the surroundings),
+    - are wide enough (minimum peak width).
+  - Among all valid peaks, the highest one is selected as the **top** and marked with `status = "accepted"`.
+  - If no such peak is found, the method falls back to simpler rules
+    (e.g. highest point in the segment or in the whole half-profile), with corresponding
+    `fallback_*` status codes.
+
+- **Bottom detection (`detect_bottom_adaptive`)**
+  - Starting from the detected top, the algorithm looks **outwards** along the profile (away from the cone centre).
+  - It smooths the elevation values and computes the **slope** (gradient of elevation with respect to distance).
+  - It searches for a zone where:
+    - the slope is strongly negative (`slope < -0.05`), i.e. a significant downhill section,
+    - and the elevation drop from the top exceeds a minimum threshold (e.g. 0.5 m).
+  - From this “drop start”, it follows the profile until:
+    - the slope stabilises (near zero) or changes sign, or
+    - the slope pattern indicates that the terrain starts rising again.
+  - Within this segment it picks the **lowest point** as the bottom candidate.
+  - This candidate is accepted (`status = "accepted"`) only if:
+    - it is far enough from the top horizontally (at least 10% of the top–centre distance), and
+    - it is low enough vertically (at least 5% of the total elevation range of the profile).
+  - If these conditions are not satisfied, the method activates a hierarchy of fallbacks
+    (`extended_search_lowest`, `fallback_drop_start`, `fallback_segment_lowest`, etc.),
+    each of which is explicitly recorded in the `status` column.
+
+In practice, this means that:
+- **“accepted”** points are found by the full slope- and distance-based logic and represent
+  the most reliable bottoms and tops,
+- **`fallback_*`** statuses indicate profiles where the ideal geometric criteria could not be met, and a more permissive rule had to be used instead.
+
+The user may experiment with changing the parameter values in the finder-py/main.py file to better match them to the analysed terrain and cone type.
+
+#### Flag status code summary
 
 | Status                      | Type       | Meaning (short)                                                                 | Typical interpretation / when it occurs                                           |
 |-----------------------------|-----------|----------------------------------------------------------------------------------|-----------------------------------------------------------------------------------|
@@ -451,7 +528,7 @@ In general, the workflow is:
 
 - For most quantitative analyses, points with `status` in `{"accepted", "refined", "refined_alt"}` can be treated as **high-quality detections**.
 - Fallback statuses are still useful, but they:
-  - often indicate **less ideal geometry** (e.g. eroded, asymmetric, or noisy cones), or  
+  - often indicate **less ideal geometry**, or  
   - mark profiles where the algorithm had to relax one or more assumptions.
 - When validating the method or inspecting outliers, it is recommended to:
   - filter or flag profiles dominated by harsh fallbacks such as  
@@ -471,12 +548,10 @@ analyzer-py/main.py
 ### 8.1. Function
 
 Analyzer aggregates Finder detections and profile data into cone-scale statistics and geometry:
-- per-transect metrics (height, widths, simple shape)
-- per-cone metrics (base/crater widths, height, volume, slopes, ratios)
-- cone footprint polygons (buffers)
+- Base/crater widths/height/dept/volume/slopes and base/crater ratio, base/height ratio.  
 - crater center locations:
     - from top points only
-    - optionally hybrid centers combining top-based center with expert input points
+    - optionally hybrid centers combining top-based center (70%) with expert input points (30%)
 
 ### 8.2. Inputs
 
@@ -531,8 +606,8 @@ Based on buffer_distance and aggregated metrics, Analyzer:
 - creates buffers around cone centers and writes them as vector layers to paths.output.shapes
 - computes crater centers from top points and exports them as GPKG/GeoJSON
 - if an expert center file is present in paths.input.centers, it can compute hybrid centers:
-- merges top-based center with expert point
-- writes a separate layer with hybrid centers
+    - merges top-based center with expert point 
+    - writes a separate layer with hybrid centers
 
 If export_geojson is true, additional GeoJSON files are written for quick visualization.
 
@@ -694,13 +769,13 @@ Each row corresponds to one cone and contains the following columns:
 - **`avg_slope_deg`** [°]  
   Mean side slope angle of the cone, averaged over all transects (degrees).
 
-- **`H_WB_ratio`** [-]  
-  Height-to-base ratio: `H / WB`, where `H` is `height` and `WB` is the base width  
+- **`H_WCO_ratio`** [-]  
+  Height-to-base ratio: `H / WCO`, where `H` is `height` and `WCO` is the base width  
   (typically `base_major_diameter`). Indicates relative steepness of the cone.
 
-- **`WCR_WB_ratio`** [-]  
-  Crater-to-base width ratio: `WCR / WB`, where `WCR` is crater width  
-  (derived from the top ellipse) and `WB` is base width. Values near 0 indicate small craters  
+- **`WCR_WCO_ratio`** [-]  
+  Crater-to-base width ratio: `WCR / WCO`, where `WCR` is crater width  
+  (derived from the top ellipse) and `WCO` is base width. Values near 0 indicate small craters  
   relative to the cone base, values near 1 indicate very wide craters.
 
 - **`center_lowest_elev`** [m]  
@@ -713,14 +788,57 @@ Each row corresponds to one cone and contains the following columns:
 
 - **`hybrid_x`**, **`hybrid_y`** [map units]  
   Hybrid crater center coordinates, combining the center estimated from top points  
-  with the expert input point (if provided in `input/points`), using a weighted average.  
+  with the expert input point (if provided in `input/points`), using a weighted average (70% calculated center and 30% input center).  
   If no expert file is available, these may be identical to the top-based center or left empty,  
   depending on the configuration.
 
 
 This table can be directly used for statistical analysis, plotting (e.g. height vs. base diameter), or comparison with manually measured cone morphometry.
 
-## 10. Troubleshooting
+## 10. Cross-section notebook (`cross-section.ipynb`)
+In addition to the CLI workflow, MarsCONE provides an optional Jupyter notebook
+(`cross-section.ipynb`) that can be used to generate **publication-ready
+files** for individual cones. 
+
+![MarsCONE cone system in QGIS](https://c5studio.pl/marscone/cone18_axis0.svg)
+
+The notebook:
+
+1. Reads the DEM-based profiles from `output/generator/profiles/whole/`.
+2. Reads detected points from `output/finder/finder_method.csv`.
+3. Reads cone-scale metrics from `output/analyzer/cone_summary.csv`.
+4. Lets you select:
+   - a particular `cone_id`, and  
+   - one **axis** (pair of opposite transects), e.g. `90°/270°` or `0°/180°`.
+5. Builds a single **composite cross-section** along this axis, merging:
+   - left and right sides of the cone,
+   - near and far `bottom` points,
+   - `top` points on both sides,
+   - the `center` point.
+
+
+#### Parameters shown in the cross-section plots
+
+For each selected cone and axis, the notebook computes and annotates:
+
+- **`Wco`** – **basal width** along the axis  
+  Horizontal distance between the two *near* bottom points on opposite sides of the cone.
+- **`Wcr`** – **crater width** along the axis  
+  Horizontal distance between the two top points on opposite sides of the cone.
+
+- **`H_left`**, **`H_right`** – **cone heights** for the left and right side  
+  Vertical distance between the top and the *near* bottom point on each side, e.g.  
+  `H_left = z_top_left − z_bottom_left_near`.
+
+- **`D_left`**, **`D_right`** – **crater depths** along each side  
+  Vertical distance between the top and the crater centre, e.g.  
+  `D_left = z_top_left − z_center`,  
+  where `z_center` is the elevation of the centre point on that axis.
+
+![MarsCONE cone system in QGIS](https://c5studio.pl/marscone/marscone-calculation.png)
+
+
+## 11. Troubleshooting
 - GDAL / PROJ errors<br/>
         Make sure you are using the marscone Conda environment created from marscone_env.yml.<br/>
         On some systems you may need to set PROJ_LIB and GDAL_DATA manually.

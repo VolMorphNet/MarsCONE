@@ -18,6 +18,9 @@
     "shape": {
       "crs": "+proj=eqc +lat_ts=0 +lat_0=0 +lon_0=146.79 +x_0=0 +y_0=0 +R=3396190 +units=m +no_defs=True"
     },
+    "classification": {
+      "shape_threshold": 1
+    },    
     "selected_profiles": [],
     "buffer_distance": 1.0,
     "export_geojson": false,
