@@ -8,7 +8,7 @@ into the local `data/` directory.
 Usage (from repository root):
 
     python download_demo_data.py
-    python download_demo_data.py --data-dir ./data --url https://c5studio.pl/marscone/test_set.zip
+    python download_demo_data.py --data-dir ./data --url https://zenodo.org/records/17885902/files/test_set.zip?download=1
 """
 
 import argparse
@@ -21,7 +21,7 @@ import zipfile
 
 
 # TODO: replace this with the actual URL of your ZIP file
-DEFAULT_URL = "https://c5studio.pl/marscone/test_set.zip"
+DEFAULT_URL = "https://zenodo.org/records/17885902/files/test_set.zip?download=1"
 DEFAULT_DATA_DIR = "data"
 ZIP_NAME = "test_set.zip"
 
