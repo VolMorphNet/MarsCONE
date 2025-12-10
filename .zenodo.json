@@ -1,0 +1,38 @@
+{
+    "creators": [
+        {
+            "name": "Śledziowski, Jakub",
+            "orcid": "0000-0001-9359-7907",
+            "affiliation": "University of Szczecin",
+            "type": "Researcher"
+        },
+        {
+            "name": "Pieterek, Bartosz",
+            "orcid":"0000-0002-1193-0321",
+            "affiliation": "Adam Mickiewicz University in Poznań",
+            "type": "Researcher"
+        },
+        {
+            "name": "Jones, Thomas J.",
+            "orcid":"0000-0003-4981-5131",
+            "affiliation": "Lancaster University",
+            "type": "Researcher"
+        }
+    ],
+    "title": "MarsCONE: A toolbox for automatic detection of Martian pitted cones morphology",
+    "version": "1.0.0",
+    "access_right": "open",
+    "keywords": [
+        "Planetary mapping",
+        "Volcanic landforms",
+        "Mars",
+        "Cone morphometry",
+        "Remote sensing"
+    ],
+    "license": "mit",
+    "upload_type": "software",
+    "language": "eng",
+    "communities": [
+        {"identifier": "volmorph"}
+    ]
+}
