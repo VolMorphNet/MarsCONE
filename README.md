@@ -112,8 +112,9 @@ Each point must have a separate ID. This ID will be used to define the results i
 ![MarsCONE input data](https://c5studio.pl/marscone/input-data.png)
 
 ### 3.2. Downloading the demo dataset
-A small demo dataset (`test_set`) is provided as a ZIP archive hosted externally
-to keep the repository size reasonable.
+A small demo dataset (`test_set`) is provided as a ZIP archive hosted externally on ZENODO repository.
+
+Dowload demo set from Zenodo https://doi.org/10.5281/zenodo.17885902 or use script described below.
 
 From the repository root, run:
 
