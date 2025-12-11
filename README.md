@@ -856,5 +856,7 @@ For each selected cone and axis, the notebook computes and annotates:
 	    Ensure that a *.shp or *.gpkg with expert centers is placed in paths.input.centers<br/>
 	    Ensure the file contains a cone_id field compatible with the IDs used in the pipeline
 
+## 12. Citation
+Śledziowski, J., Pieterek, B., & Jones, T. J. (2025). MarsCONE: A toolbox for automatic detection of Martian pitted cones morphology (1.0.0). Zenodo. https://doi.org/10.5281/zenodo.17887603
 
 
