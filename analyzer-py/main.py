@@ -9,30 +9,36 @@ Authors: Jakub Śledziowski, Bartosz Pieterek, Thomas Jones
 License: MIT
 """
 
-import os
-import sys
+# pylint: disable=no-name-in-module,too-many-arguments,too-many-positional-arguments
+
 import json
-import pandas as pd
-import geopandas as gpd
-from shapely.geometry import LineString, Point, Polygon
-from shapely.affinity import translate
-from os.path import join
-from tqdm import tqdm
-import numpy as np
 import math
-from skimage.measure import EllipseModel
+import os
+from os.path import join
+from typing import Optional
+
+import geopandas as gpd
+import numpy as np
+import pandas as pd
+from shapely.geometry import LineString, Point, Polygon
+from skimage.measure import EllipseModel  # pylint: disable=no-name-in-module
+from tqdm import tqdm
 
 YELLOW = "\033[93m"
 RESET = "\033[0m"
 RED = "\033[91m"
 GREEN = "\033[92m"
 
-def ellipse_to_polygon(cx: float,
-                       cy: float,
-                       major_diameter: float,
-                       minor_diameter: float,
-                       angle_deg: float,
-                       n_points: int = 180) -> Polygon:
+
+# pylint: disable=too-many-arguments,too-many-positional-arguments
+def ellipse_to_polygon(
+    cx: float,
+    cy: float,
+    major_diameter: float,
+    minor_diameter: float,
+    angle_deg: float,
+    n_points: int = 180,
+) -> Polygon:  # pylint: disable=too-many-arguments,too-many-positional-arguments
     """
     Approximates an ellipse as a Shapely polygon.
 
@@ -90,54 +96,83 @@ def filter_iqr(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     mask = dist <= thresh
     return gdf[mask]
 
-def angle_from_transect_id(tid: str):
-    """
-    Extract axis angle from transect_id, e.g. '12_45deg' -> 45 (mod 180 so that 45/225 share the same axis).
+
+def angle_from_transect_id(tid: str) -> Optional[int]:
+    """Extract axis angle from transect_id.
+
+    Extracts angle from transect IDs in format like '12_45deg',
+    returning 45. Angles are modulo 180 so that 45 and 225 share
+    the same axis.
+
+    Parameters
+    ----------
+    tid : str
+        The transect ID string.
+
+    Returns
+    -------
+    int or None
+        The extracted angle, or None if extraction fails.
     """
     if not isinstance(tid, str):
         return None
     try:
         angle = int(tid.split("_")[1].replace("deg", ""))
         return angle % 180
-    except Exception:
+    except ValueError:
         return None
 
-def main():
+
+def main():  # pylint: disable=too-many-locals,too-many-branches,too-many-statements
+    """Perform morphometric analysis of cone-like landforms.
+
+    Loads configuration, processes cone profiles, calculates metrics
+    (height, width, volume, shape), and exports results as CSV and
+    GeoPackage files. Also generates ellipse fits for cone bases and
+    crater center points.
+    """
     hybrid_results = []
-    with open("config.json", "r") as f:
+    with open("config.json", encoding="utf-8") as f:
         config = json.load(f)
 
     base = config["paths"]["base"]
-    db_path = join(base, config["paths"]["db"])
     crs = config["shape"]["crs"]
     csv_sep = config["csv"].get("sep", ";")
-    buffer = config.get("buffer_distance", 1.0)
     export_geojson = config.get("export_geojson", True)
 
     profiles_dir = join(base, config["paths"]["input"]["profiles"])
     points_file = join(base, config["paths"]["input"]["points"], "finder_method.csv")
     output_csv = join(base, config["paths"]["output"]["csv"])
     output_shapes_dir = join(base, config["paths"]["output"]["shapes"])
-    cone_csv = join(base, "output/analyzer/cone_summary.csv")
 
     os.makedirs(output_shapes_dir, exist_ok=True)
 
     print(f"{YELLOW}✔ Reading profile points and detected features{RESET}")
     profiles = pd.concat(
-        [pd.read_csv(join(profiles_dir, f), sep=csv_sep) for f in os.listdir(profiles_dir) if f.endswith(".csv")],
-        ignore_index=True
+        [
+            pd.read_csv(join(profiles_dir, f), sep=csv_sep)
+            for f in os.listdir(profiles_dir)
+            if f.endswith(".csv")
+        ],
+        ignore_index=True,
     )
-    gdf_profiles = gpd.GeoDataFrame(profiles, geometry=gpd.points_from_xy(profiles.x_geo, profiles.y_geo), crs=crs)
+    gdf_profiles = gpd.GeoDataFrame(
+        profiles, geometry=gpd.points_from_xy(profiles.x_geo, profiles.y_geo), crs=crs
+    )
 
     features = pd.read_csv(points_file, sep=csv_sep)
-    gdf_features = gpd.GeoDataFrame(features, geometry=gpd.points_from_xy(features.x_geo, features.y_geo), crs=crs)
+    gdf_features = gpd.GeoDataFrame(
+        features, geometry=gpd.points_from_xy(features.x_geo, features.y_geo), crs=crs
+    )
 
     results = []
 
     grouped = gdf_features.groupby("transect_id")
     for transect_id, group in tqdm(grouped, desc="Analyzing profiles"):
         cone_id = group["cone_id"].iloc[0]
-        subset = gdf_profiles[gdf_profiles["transect_id"] == transect_id].sort_values("distance")
+        subset = gdf_profiles[gdf_profiles["transect_id"] == transect_id].sort_values(
+            "distance"
+        )
 
         top = group[group["type"].str.contains("top")]
         bottom = group[group["type"].str.contains("bottom")]
@@ -154,7 +189,10 @@ def main():
             bottom_first = bottom.iloc[0]
             bottom_last = bottom.iloc[-1]
 
-            bottom_width = ((bottom_last.x_geo - bottom_first.x_geo) ** 2 + (bottom_last.y_geo - bottom_first.y_geo) ** 2) ** 0.5
+            bottom_width = (
+                (bottom_last.x_geo - bottom_first.x_geo) ** 2
+                + (bottom_last.y_geo - bottom_first.y_geo) ** 2
+            ) ** 0.5
             width = round(bottom_width, 3)
         else:
             width = 0
@@ -162,18 +200,21 @@ def main():
         if len(top) >= 2:
             top_first = top.iloc[0]
             top_last = top.iloc[-1]
-            top_width = ((top_last.x_geo - top_first.x_geo) ** 2 + (top_last.y_geo - top_first.y_geo) ** 2) ** 0.5
+            top_width = (
+                (top_last.x_geo - top_first.x_geo) ** 2
+                + (top_last.y_geo - top_first.y_geo) ** 2
+            ) ** 0.5
             top_width = round(top_width, 3)
         else:
             top_width = 0
-            
+
         if not center.empty:
             center_elev = center["elevation"].mean()
             center_x = center["x_geo"].mean()
             center_y = center["y_geo"].mean()
-            center_to_top_diff = top_elev - center_elev  
+            center_to_top_diff = top_elev - center_elev
         else:
-            center_elev = None  
+            center_elev = None
             center_to_top_diff = None
             center_x = None
             center_y = None
@@ -189,76 +230,105 @@ def main():
             else:
                 shape_class = "convex"
 
-        results.append({
-            "transect_id": transect_id,
-            "cone_id": cone_id,
-            "height": round(height, 3),
-            "bottom_width": width,
-            "top_width": top_width,
-            "top_elev": round(top_elev, 3),
-            "bottom_elev": round(bottom_elev, 3),
-            "center_elev": center_elev,
-            "center_x": center_x,
-            "center_y": center_y,
-            "center_to_top_diff": center_to_top_diff,
-            "shape": shape_class
-        })
+        results.append(
+            {
+                "transect_id": transect_id,
+                "cone_id": cone_id,
+                "height": round(height, 3),
+                "bottom_width": width,
+                "top_width": top_width,
+                "top_elev": round(top_elev, 3),
+                "bottom_elev": round(bottom_elev, 3),
+                "center_elev": center_elev,
+                "center_x": center_x,
+                "center_y": center_y,
+                "center_to_top_diff": center_to_top_diff,
+                "shape": shape_class,
+            }
+        )
 
         if export_geojson:
             group_out = group.copy()
             line = LineString(subset.geometry.tolist())
-            shape_path = join(output_shapes_dir, f"cone_{cone_id}_{transect_id}.geojson")
+            shape_path = join(
+                output_shapes_dir, f"cone_{cone_id}_{transect_id}.geojson"
+            )
             group_out["geometry_type"] = group_out["type"]
-            group_out = pd.concat([
-                group_out,
-                gpd.GeoDataFrame([{"geometry": line, "geometry_type": "profile_line"}], crs=crs)
-            ])
+            group_out = pd.concat(
+                [
+                    group_out,
+                    gpd.GeoDataFrame(
+                        [{"geometry": line, "geometry_type": "profile_line"}], crs=crs
+                    ),
+                ]
+            )
             group_out.to_file(shape_path, driver="GeoJSON")
 
     df_out = pd.DataFrame(results)
     df_out.to_csv(output_csv, sep=csv_sep, index=False, encoding="utf-8")
     print(f"{YELLOW}✔ Exported {len(df_out)} measurements to {output_csv}{RESET}")
 
+    df_cone_base = (
+        df_out.groupby("cone_id")
+        .agg(
+            {
+                "height": "mean",
+                "bottom_width": "mean",
+                "top_elev": "mean",
+                "bottom_elev": "mean",
+                "center_elev": "mean",
+                "center_to_top_diff": "mean",
+                "center_x": "mean",
+                "center_y": "mean",
+            }
+        )
+        .reset_index()
+    )
 
-    df_cone_base = df_out.groupby('cone_id').agg({
-        'height': 'mean',
-        'bottom_width': 'mean',
-        'top_elev': 'mean',
-        'bottom_elev': 'mean',
-        'center_elev': 'mean',
-        'center_to_top_diff': 'mean',
-        "center_x": "mean",
-        "center_y": "mean"
-    }).reset_index()
-
-    shape_mode = df_out.groupby("cone_id")["shape"].agg(lambda x: x.mode().iloc[0] if not x.mode().empty else None)
+    shape_mode = df_out.groupby("cone_id")["shape"].agg(
+        lambda x: x.mode().iloc[0] if not x.mode().empty else None
+    )
     df_cone_base["shape"] = shape_mode.values
 
     cone_metrics = []
-    
-    gdf_bottom = gdf_features[gdf_features["type"].str.contains("bottom", regex=True)].copy()
+
+    gdf_bottom = gdf_features[
+        gdf_features["type"].str.contains("bottom", regex=True)
+    ].copy()
     gdf_top = gdf_features[gdf_features["type"].str.contains("top", regex=True)].copy()
 
     bottom_clean_list = []
     top_clean_list = []
 
-    print(f"{YELLOW}✔ Calculating advanced morphometric parameters for each cone...{RESET}")
+    print(
+        f"{YELLOW}✔ Calculating advanced morphometric parameters for each cone...{RESET}"
+    )
     for cone_id in tqdm(df_out["cone_id"].unique(), desc="Analyzing cone geometry"):
         bottom_points = gdf_bottom[gdf_bottom["cone_id"] == cone_id]
         top_points = gdf_top[gdf_top["cone_id"] == cone_id]
-        
+
         bottom_clean = filter_iqr(bottom_points)
         top_clean = filter_iqr(top_points)
 
         bottom_clean_list.append(bottom_clean)
         top_clean_list.append(top_clean)
-        base_area, major_diameter_b, minor_diameter_b, ellipticity, azimuth = (None,) * 5
+        base_area, major_diameter_b, minor_diameter_b, ellipticity, azimuth = (
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
         major_diameter_t, minor_diameter_t = None, None
-        volume, avg_slope, h_wb_ratio, wcr_wb_ratio = (None,) * 4
-        
+        volume, avg_slope, h_wb_ratio, wcr_wb_ratio = None, None, None, None
+        xc_b, yc_b, theta_b = None, None, None
+        xc_t, yc_t, theta_t = None, None, None
+
         if len(bottom_clean) >= 5:
-            coords_b = np.array(list(zip(bottom_clean.geometry.x, bottom_clean.geometry.y)))
-            
+            coords_b = np.array(
+                list(zip(bottom_clean.geometry.x, bottom_clean.geometry.y))
+            )
+
             ell_b = EllipseModel()
             success_b = ell_b.estimate(coords_b)
 
@@ -271,7 +341,6 @@ def main():
                 ellipticity = 1 - (b_b / a_b)
                 azimuth = (90 - math.degrees(theta_b)) % 180
 
-         
         if len(top_clean) >= 5:
             coords_t = np.array(list(zip(top_clean.geometry.x, top_clean.geometry.y)))
             ell_t = EllipseModel()
@@ -281,16 +350,20 @@ def main():
                 xc_t, yc_t, a_t, b_t, theta_t = ell_t.params
                 major_diameter_t = 2 * a_t
                 minor_diameter_t = 2 * b_t
-        
+
         height = df_cone_base.loc[df_cone_base["cone_id"] == cone_id, "height"].iloc[0]
 
-        if height is not None and major_diameter_b is not None and major_diameter_t is not None:
-            R = major_diameter_b / 2  
-            r = major_diameter_t / 2  
-            
+        if (
+            height is not None
+            and major_diameter_b is not None
+            and major_diameter_t is not None
+        ):
+            R = major_diameter_b / 2  # pylint: disable=invalid-name
+            r = major_diameter_t / 2
+
             # Volume of a cone: V = (1/3) * pi * h * (R^2 + R*r + r^2)
-            volume = (1/3) * math.pi * height * (R**2 + R*r + r**2)
-            
+            volume = (1 / 3) * math.pi * height * (R**2 + R * r + r**2)
+
             # Average slope gradient
             if (R - r) > 0:
                 slope_rad = math.atan(height / (R - r))
@@ -299,38 +372,42 @@ def main():
         # Calculation of indicators
         if height is not None and major_diameter_b is not None and major_diameter_b > 0:
             h_wb_ratio = height / major_diameter_b
-        
-        if major_diameter_t is not None and major_diameter_b is not None and major_diameter_b > 0:
+
+        if (
+            major_diameter_t is not None
+            and major_diameter_b is not None
+            and major_diameter_b > 0
+        ):
             wcr_wb_ratio = major_diameter_t / major_diameter_b
-            
-        cone_metrics.append({
-            "cone_id": cone_id,
-            "base_area": base_area,
-            "base_major_diameter (WCO)": major_diameter_b,
-            "base_minor_diameter": minor_diameter_b,
-            "base_center_x": xc_b,
-            "base_center_y": yc_b,
-            "base_angle_deg": np.degrees(theta_b),
-            "top_major_diameter (WCR)": major_diameter_t,
-            "top_minor_diameter": minor_diameter_t,
-            "top_center_x": xc_t,
-            "top_center_y": yc_t,
-            "top_angle_deg": np.degrees(theta_t),
-            "volume": volume,
-            "base_ellipticity": ellipticity,
-            "elongation_azimuth": azimuth,
-            "avg_slope_deg": avg_slope,
-            "H_WCO_ratio": h_wb_ratio,
-            "WCR_WCO_ratio": wcr_wb_ratio
-        })
+
+        cone_metrics.append(
+            {
+                "cone_id": cone_id,
+                "base_area": base_area,
+                "base_major_diameter (WCO)": major_diameter_b,
+                "base_minor_diameter": minor_diameter_b,
+                "base_center_x": xc_b,
+                "base_center_y": yc_b,
+                "base_angle_deg": np.degrees(theta_b),
+                "top_major_diameter (WCR)": major_diameter_t,
+                "top_minor_diameter": minor_diameter_t,
+                "top_center_x": xc_t,
+                "top_center_y": yc_t,
+                "top_angle_deg": np.degrees(theta_t),
+                "volume": volume,
+                "base_ellipticity": ellipticity,
+                "elongation_azimuth": azimuth,
+                "avg_slope_deg": avg_slope,
+                "H_WCO_ratio": h_wb_ratio,
+                "WCR_WCO_ratio": wcr_wb_ratio,
+            }
+        )
 
     gdf_bottom_clean = gpd.GeoDataFrame(
-        pd.concat(bottom_clean_list, ignore_index=True),
-        crs=crs
+        pd.concat(bottom_clean_list, ignore_index=True), crs=crs
     )
     gdf_top_clean = gpd.GeoDataFrame(
-        pd.concat(top_clean_list, ignore_index=True),
-        crs=crs
+        pd.concat(top_clean_list, ignore_index=True), crs=crs
     )
     df_metrics = pd.DataFrame(cone_metrics)
 
@@ -356,7 +433,7 @@ def main():
     gdf_cones = gpd.GeoDataFrame(
         df_cone,
         geometry=gpd.points_from_xy(df_cone["center_x"], df_cone["center_y"]),
-        crs=crs  
+        crs=crs,
     )
 
     gdf_cones["geometry"] = gdf_cones.geometry.buffer(gdf_cones["bottom_width"] / 2)
@@ -367,7 +444,9 @@ def main():
         shape_gdf.to_file(shape_path, driver="GPKG")
         print(f"{GREEN}✔ Saved: {shape_path}{RESET}")
 
-    print(f"{YELLOW}✔ Computing crater centers using top points and least squares{RESET}")
+    print(
+        f"{YELLOW}✔ Computing crater centers using top points and least squares{RESET}"
+    )
 
     # Filter only points of type *_top
     gdf_top = gdf_features[gdf_features["type"].str.contains("_top", regex=True)].copy()
@@ -384,7 +463,7 @@ def main():
         if len(group) >= 4:
             cx = np.median(x)
             cy = np.median(y)
-            dist = np.sqrt((x - cx)**2 + (y - cy)**2)
+            dist = np.sqrt((x - cx) ** 2 + (y - cy) ** 2)
             iqr = np.percentile(dist, 75) - np.percentile(dist, 25)
             mask = dist < (np.percentile(dist, 75) + 1.5 * iqr)
             x = x[mask]
@@ -393,13 +472,14 @@ def main():
         x_center = np.mean(x)
         y_center = np.mean(y)
 
-        center_results.append({
-            "cone_id": cone_id,
-            "x_geo": x_center,
-            "y_geo": y_center,
-            "geometry": Point(x_center, y_center)
-        })
-        
+        center_results.append(
+            {
+                "cone_id": cone_id,
+                "x_geo": x_center,
+                "y_geo": y_center,
+                "geometry": Point(x_center, y_center),
+            }
+        )
 
     # Export as a separate GeoJSON
     gdf_centers = gpd.GeoDataFrame(center_results, crs=crs)
@@ -409,7 +489,7 @@ def main():
     print(f"{GREEN}✔ Saved center points to {center_out_path}{RESET}")
 
     print(f"{YELLOW}✔ Reading expert crater center points from input/centers{RESET}")
-    
+
     centers_input_path = join(base, config["paths"]["input"]["centers"])
     expert_center_file = None
 
@@ -432,10 +512,15 @@ def main():
             elif "name" in input_points_gdf.columns:
                 input_points_gdf = input_points_gdf.rename(columns={"name": "cone_id"})
             else:
-                print(f"{RED}✘ No valid ID column found in input center file. Expected 'cone_id', 'id', 'Id' or 'name'.{RESET}")
-                input_points_gdf["cone_id"] = None  
+                print(
+                    f"{RED}✘ No valid ID column found in input center file. "
+                    f"Expected 'cone_id', 'id', 'Id' or 'name'.{RESET}"
+                )
+                input_points_gdf["cone_id"] = None
 
-        input_center_out = os.path.join(base, "output/analyzer/shapes/centers_input.gpkg")
+        input_center_out = os.path.join(
+            base, "output/analyzer/shapes/centers_input.gpkg"
+        )
         input_points_gdf.to_file(input_center_out, driver="GPKG")
         print(f"{GREEN}✔ Saved input center points to {input_center_out}{RESET}")
 
@@ -445,7 +530,9 @@ def main():
 
     if input_points_gdf is not None:
         for cone_id, group in gdf_top.groupby("cone_id"):
-            input_point = input_points_gdf[input_points_gdf["cone_id"].astype(str) == str(cone_id)]
+            input_point = input_points_gdf[
+                input_points_gdf["cone_id"].astype(str) == str(cone_id)
+            ]
 
             if input_point.empty:
                 continue
@@ -459,7 +546,7 @@ def main():
             if len(group) >= 4:
                 cx = np.median(x)
                 cy = np.median(y)
-                dist = np.sqrt((x - cx)**2 + (y - cy)**2)
+                dist = np.sqrt((x - cx) ** 2 + (y - cy) ** 2)
                 iqr = np.percentile(dist, 75) - np.percentile(dist, 25)
                 mask = dist < (np.percentile(dist, 75) + 1.5 * iqr)
                 x = x[mask]
@@ -475,26 +562,36 @@ def main():
             hybrid_x = w_top * centroid_x + w_input * input_x
             hybrid_y = w_top * centroid_y + w_input * input_y
 
-            hybrid_results.append({
-                "cone_id": cone_id,
-                "x_geo": hybrid_x,
-                "y_geo": hybrid_y,
-                "geometry": Point(hybrid_x, hybrid_y)
-            })
+            hybrid_results.append(
+                {
+                    "cone_id": cone_id,
+                    "x_geo": hybrid_x,
+                    "y_geo": hybrid_y,
+                    "geometry": Point(hybrid_x, hybrid_y),
+                }
+            )
 
         if hybrid_results:
             gdf_hybrid = gpd.GeoDataFrame(hybrid_results, geometry="geometry", crs=crs)
-            hybrid_out_path = os.path.join(base, "output/analyzer/shapes/centers_hybrid.gpkg")
+            hybrid_out_path = os.path.join(
+                base, "output/analyzer/shapes/centers_hybrid.gpkg"
+            )
             gdf_hybrid.to_file(hybrid_out_path, driver="GPKG")
             print(f"{GREEN}✔ Saved hybrid center points to {hybrid_out_path}{RESET}")
         else:
-            print(f"{RED}✘ No hybrid centers were computed – check if cone_id values match between top points and expert points.{RESET}")
-
+            print(
+                f"{RED}✘ No hybrid centers computed – check if cone_id values "
+                f"match between top points and expert points.{RESET}"
+            )
 
         if hybrid_results:
             df_hybrid = pd.DataFrame(hybrid_results)
-            df_hybrid = df_hybrid.rename(columns={"x_geo": "hybrid_x", "y_geo": "hybrid_y"})
-            df_cone = df_cone.merge(df_hybrid[["cone_id", "hybrid_x", "hybrid_y"]], on="cone_id", how="left")
+            df_hybrid = df_hybrid.rename(
+                columns={"x_geo": "hybrid_x", "y_geo": "hybrid_y"}
+            )
+            df_cone = df_cone.merge(
+                df_hybrid[["cone_id", "hybrid_x", "hybrid_y"]], on="cone_id", how="left"
+            )
         else:
             df_cone["hybrid_x"] = None
             df_cone["hybrid_y"] = None
@@ -503,13 +600,18 @@ def main():
         print(f"{YELLOW}✔ Updated cone_summary.csv with hybrid coordinates{RESET}")
 
     else:
-        print(f"{RED}✘ Skipping hybrid center calculation – no expert file found.{RESET}")
+        print(
+            f"{RED}✘ Skipping hybrid center calculation – no expert file found.{RESET}"
+        )
 
+    #  Summary GeoPackage with full representation of cones
+    print(
+        f"{YELLOW}✔ Exporting unified GeoPackage with cleaned points and fitted ellipses{RESET}"
+    )
 
-    #  Summary GeoPackage with full representation of cones 
-    print(f"{YELLOW}✔ Exporting unified GeoPackage with cleaned points and fitted ellipses{RESET}")
-
-    summary_rel = config.get("output", {}).get("summary_gpkg", "output/analyzer/marscone.gpkg")
+    summary_rel = config.get("output", {}).get(
+        "summary_gpkg", "output/analyzer/marscone.gpkg"
+    )
     summary_gpkg = os.path.join(base, summary_rel)
 
     os.makedirs(os.path.dirname(summary_gpkg), exist_ok=True)
@@ -517,7 +619,9 @@ def main():
     if os.path.exists(summary_gpkg):
         os.remove(summary_gpkg)
 
-    gdf_bottom_clean.to_file(summary_gpkg, layer="points_bottom_near_and_far", driver="GPKG")
+    gdf_bottom_clean.to_file(
+        summary_gpkg, layer="points_bottom_near_and_far", driver="GPKG"
+    )
     gdf_top_clean.to_file(summary_gpkg, layer="points_top", driver="GPKG")
 
     ellipse_base_rows = []
@@ -528,55 +632,67 @@ def main():
         cx = row.get("top_center_x", row["center_x"])
         cy = row.get("top_center_y", row["center_y"])
 
-
         # base ellipse
-        if not pd.isna(row.get("base_major_diameter", np.nan)) and not pd.isna(row.get("base_minor_diameter", np.nan)):
+        if not pd.isna(row.get("base_major_diameter", np.nan)) and not pd.isna(
+            row.get("base_minor_diameter", np.nan)
+        ):
             poly_b = ellipse_to_polygon(
                 cx=cx,
                 cy=cy,
                 major_diameter=row["base_major_diameter"],
                 minor_diameter=row["base_minor_diameter"],
-                angle_deg=row.get("elongation_azimuth", 0.0)
+                angle_deg=row.get("elongation_azimuth", 0.0),
             )
-            ellipse_base_rows.append({
-                "cone_id": cone_id,
-                "geometry": poly_b,
-                "shape": row.get("shape", None),
-                "base_major_diameter": row["base_major_diameter"],
-                "base_minor_diameter": row["base_minor_diameter"],
-                "base_area": row.get("base_area", None),
-                "elongation_azimuth": row.get("elongation_azimuth", None)
-            })
+            ellipse_base_rows.append(
+                {
+                    "cone_id": cone_id,
+                    "geometry": poly_b,
+                    "shape": row.get("shape", None),
+                    "base_major_diameter": row["base_major_diameter"],
+                    "base_minor_diameter": row["base_minor_diameter"],
+                    "base_area": row.get("base_area", None),
+                    "elongation_azimuth": row.get("elongation_azimuth", None),
+                }
+            )
 
         # top ellipse
-        if not pd.isna(row.get("top_major_diameter", np.nan)) and not pd.isna(row.get("top_minor_diameter", np.nan)):
+        if not pd.isna(row.get("top_major_diameter", np.nan)) and not pd.isna(
+            row.get("top_minor_diameter", np.nan)
+        ):
             poly_t = ellipse_to_polygon(
                 cx=cx,
                 cy=cy,
                 major_diameter=row["top_major_diameter"],
                 minor_diameter=row["top_minor_diameter"],
-                angle_deg=row.get("elongation_azimuth", 0.0)
+                angle_deg=row.get("elongation_azimuth", 0.0),
             )
-            ellipse_top_rows.append({
-                "cone_id": cone_id,
-                "geometry": poly_t,
-                "top_major_diameter": row["top_major_diameter"],
-                "top_minor_diameter": row["top_minor_diameter"]
-            })
+            ellipse_top_rows.append(
+                {
+                    "cone_id": cone_id,
+                    "geometry": poly_t,
+                    "top_major_diameter": row["top_major_diameter"],
+                    "top_minor_diameter": row["top_minor_diameter"],
+                }
+            )
 
     if ellipse_base_rows:
-        gdf_ellipse_base = gpd.GeoDataFrame(ellipse_base_rows, geometry="geometry", crs=crs)
+        gdf_ellipse_base = gpd.GeoDataFrame(
+            ellipse_base_rows, geometry="geometry", crs=crs
+        )
         gdf_ellipse_base.to_file(summary_gpkg, layer="ellipse_base", driver="GPKG")
 
     if ellipse_top_rows:
-        gdf_ellipse_top = gpd.GeoDataFrame(ellipse_top_rows, geometry="geometry", crs=crs)
+        gdf_ellipse_top = gpd.GeoDataFrame(
+            ellipse_top_rows, geometry="geometry", crs=crs
+        )
         gdf_ellipse_top.to_file(summary_gpkg, layer="ellipse_top", driver="GPKG")
-
 
     points_axis_rows = []
 
     if not gdf_bottom_clean.empty:
-        for (cone_id, transect_id), sub in gdf_bottom_clean.groupby(["cone_id", "transect_id"]):
+        for (cone_id, transect_id), sub in gdf_bottom_clean.groupby(
+            ["cone_id", "transect_id"]
+        ):
             if sub.empty:
                 continue
 
@@ -593,26 +709,33 @@ def main():
             points_axis_rows.append(best)
 
     if points_axis_rows:
-        gdf_bottom_axis = gpd.GeoDataFrame(points_axis_rows,
-                                           geometry="geometry",
-                                           crs=crs)
-        gdf_bottom_axis.to_file(summary_gpkg,
-                                layer="points_bottom",
-                                driver="GPKG")
-        print(f"{GREEN}✔ Saved per-transect bottom points to layer 'points_bottom'{RESET}")
+        gdf_bottom_axis = gpd.GeoDataFrame(
+            points_axis_rows, geometry="geometry", crs=crs
+        )
+        gdf_bottom_axis.to_file(summary_gpkg, layer="points_bottom", driver="GPKG")
+        print(
+            f"{GREEN}✔ Saved per-transect bottom points to layer 'points_bottom'{RESET}"
+        )
 
     centers_path = os.path.join(base, "output/analyzer/centers.gpkg")
     centers_input_path = os.path.join(base, "output/analyzer/centers_input.gpkg")
     centers_hybrid_path = os.path.join(base, "output/analyzer/centers_hybrid.gpkg")
 
     if os.path.exists(centers_path):
-        gpd.read_file(centers_path).to_file(summary_gpkg, layer="centroid_top", driver="GPKG")
+        gpd.read_file(centers_path).to_file(
+            summary_gpkg, layer="centroid_top", driver="GPKG"
+        )
     if os.path.exists(centers_input_path):
-        gpd.read_file(centers_input_path).to_file(summary_gpkg, layer="centroid_input", driver="GPKG")
+        gpd.read_file(centers_input_path).to_file(
+            summary_gpkg, layer="centroid_input", driver="GPKG"
+        )
     if os.path.exists(centers_hybrid_path):
-        gpd.read_file(centers_hybrid_path).to_file(summary_gpkg, layer="centroid_hybrid", driver="GPKG")
+        gpd.read_file(centers_hybrid_path).to_file(
+            summary_gpkg, layer="centroid_hybrid", driver="GPKG"
+        )
 
     print(f"{GREEN}✔ Saved unified GeoPackage to {summary_gpkg}{RESET}")
+
 
 if __name__ == "__main__":
     main()

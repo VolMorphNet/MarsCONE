@@ -1,10 +1,18 @@
-import os
+"""
+DEM processing module for cropping and slope calculation.
+
+Handles GIS raster operations including cropping DEM files using
+input geometries and calculating slope gradients.
+"""
+
 import glob
+import os
+import sys
+from os.path import join
+
 import geopandas as gpd
 from osgeo import gdal, gdalconst
-from os.path import join, basename
 from tqdm import tqdm
-import sys
 
 IS_GUI = "--gui" in sys.argv
 
@@ -20,10 +28,22 @@ gdal.SetConfigOption("VSI_CACHE_SIZE", "32000000")
 
 try:
     gdal.SetConfigOption("GDAL_USE_OPENCL", "TRUE")
-except:
+except (RuntimeError, ValueError):
     pass
 
-def get_DEM(config):
+
+def get_DEM(
+    config,
+):  # pylint: disable=invalid-name,too-many-locals,too-many-branches,too-many-statements
+    """Crop DEM rasters using input cone geometries.
+
+    Extracts DEM tiles for each cone location and calculates slope gradients.
+
+    Parameters
+    ----------
+    config : dict
+        Configuration dictionary with paths and parameters.
+    """
     base = config["paths"]["base"]
     dem_dir = join(base, config["paths"]["input"]["dem"])
     dem_input_files = glob.glob(join(dem_dir, "*.tif"))
@@ -45,19 +65,18 @@ def get_DEM(config):
     if mode == "points":
         gdf = gpd.read_file(db_path, layer=config["db_layers"]["points"]).to_crs(crs)
         buffer_width = config["parameters"].get("buffer_width", 100)
-        gdf["geometry"] = gdf.geometry.buffer(buffer_width / 2)  
-        
+        gdf["geometry"] = gdf.geometry.buffer(buffer_width / 2)
+
         found_id_col = False
         for col_name in gdf.columns:
-            if col_name.lower() == "id": 
-                if col_name != "id": 
+            if col_name.lower() == "id":
+                if col_name != "id":
                     gdf = gdf.rename(columns={col_name: "id"})
                 found_id_col = True
                 break
 
         if not found_id_col:
             gdf["id"] = (gdf.index + 1).astype(int)
-        
 
         gdf["id"] = gdf["id"].astype(str)
         cones = gdf
@@ -75,20 +94,25 @@ def get_DEM(config):
                 found_id_col = True
                 break
         if not found_id_col:
-            print(f"{RED}Warning: No 'id' or 'Id' column in layer '{cones_layer}'. DataFrame index use as ID..{RESET}")
+            print(
+                f"{RED}Warning: No 'id' or 'Id' column in layer "
+                f"'{cones_layer}'. DataFrame index used as ID.{RESET}"
+            )
             cones["id"] = (cones.index + 1).astype(int)
-        
+
         cones["id"] = cones["id"].astype(str)
-        
+
     # Get NODATA info
     sample = gdal.Open(dem_input_file, gdal.GA_ReadOnly)
     src_nodata = sample.GetRasterBand(1).GetNoDataValue()
     dst_nodata = -9999
     sample = None
 
-    with tqdm(total=len(cones), desc="... clipping DEM by cones", disable=IS_GUI) as progress:
-        for idx, row in cones.iterrows():
-            cone_id = row["id"] 
+    with tqdm(
+        total=len(cones), desc="... clipping DEM by cones", disable=IS_GUI
+    ) as progress:
+        for _, row in cones.iterrows():
+            cone_id = row["id"]
             cone_geom = f"id='{cone_id}'"
 
             out_dem = join(dem_out_dir, f"cone_{cone_id}_dem.tif")

@@ -8,31 +8,40 @@ into the local `data/` directory.
 Usage (from repository root):
 
     python download_demo_data.py
-    python download_demo_data.py --data-dir ./data --url https://zenodo.org/records/17885902/files/test_set.zip?download=1
+    python download_demo_data.py --data-dir ./data --url \\
+        https://zenodo.org/records/17885902/files/test_set.zip?download=1
 """
 
 import argparse
-import os
-from pathlib import Path
 import shutil
 import sys
+import urllib.error
 import urllib.request
 import zipfile
+from pathlib import Path
 
-
-# TODO: replace this with the actual URL of your ZIP file
+# NOTE: Replace this with the actual URL of your ZIP file if needed
 DEFAULT_URL = "https://zenodo.org/records/17885902/files/test_set.zip?download=1"
 DEFAULT_DATA_DIR = "data"
 ZIP_NAME = "test_set.zip"
 
 
 def download_file(url: str, dest: Path) -> None:
+    """Download a file from a URL to a destination path.
+
+    Parameters
+    ----------
+    url : str
+        The URL to download from.
+    dest : Path
+        The destination file path.
+    """
     dest.parent.mkdir(parents=True, exist_ok=True)
     print(f"✔ Downloading demo data from:\n  {url}")
     try:
         with urllib.request.urlopen(url) as response, open(dest, "wb") as out_file:
             shutil.copyfileobj(response, out_file)
-    except Exception as e:
+    except (urllib.error.URLError, OSError) as e:
         print(f"✘ Download failed: {e}")
         if dest.exists():
             dest.unlink()
@@ -56,6 +65,11 @@ def extract_zip(zip_path: Path, target_dir: Path, remove_zip: bool = True) -> No
 
 
 def main() -> None:
+    """Download and extract the MarsCONE demo dataset.
+
+    Parse command-line arguments and orchestrate the download and
+    extraction of the test dataset.
+    """
     parser = argparse.ArgumentParser(
         description="Download and unpack the MarsCONE demo dataset (test_set.zip)."
     )
@@ -72,7 +86,7 @@ def main() -> None:
     parser.add_argument(
         "--keep-zip",
         action="store_true",
-        help="Keep the downloaded ZIP file instead of deleting it after extraction.",
+        help="Keep the downloaded ZIP file instead of deleting after extraction.",
     )
 
     args = parser.parse_args()
@@ -86,11 +100,20 @@ def main() -> None:
     test_set_dir = data_dir / "test_set"
     if test_set_dir.exists():
         print(f"Detected existing directory: {test_set_dir}")
-        print("Existing files will be left as-is, but extracted demo data may overwrite files with the same names.")
+        print(
+            "Existing files will be left as-is, but extracted demo data may "
+            "overwrite files with the same names."
+        )
         print("If you want a clean demo, consider removing `data/test_set` first.\n")
 
     download_file(args.url, zip_path)
     extract_zip(zip_path, data_dir, remove_zip=not args.keep_zip)
+
+    # Create the crop folder in input directory if it doesn't exist
+    crop_dir = test_set_dir / "input" / "crop"
+    if not crop_dir.exists():
+        crop_dir.mkdir(parents=True, exist_ok=True)
+        print(f"✔ Created crop directory: {crop_dir}")
 
     print("\n✔ Demo dataset ready.")
     print(f"You should now have: {test_set_dir}")

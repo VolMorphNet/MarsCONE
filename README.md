@@ -12,6 +12,30 @@ The workflow consists of three main modules:
 
 The code is written in Python and uses standard geospatial libraries (GDAL, GeoPandas, Rasterio, Shapely).
 
+## Table of contents
+
+- [Additional documentation](#additional-documentation)
+- [Installation](#1-installation)
+- [Repository structure](#2-repository-structure)
+- [Data and configuration](#3-data-and-configuration)
+- [Configuration files](#4-configuration-files)
+- [Workflow overview](#5-workflow-overview)
+- [Module 1 – Generator](#6-module-1--generator)
+- [Module 2 – Finder](#7-module-2--finder)
+- [Module 3 – Analyzer](#8-module-3--analyzer)
+- [Example outputs](#9-example-outputs)
+- [Cross-section notebook](#10-cross-section-notebook-cross-sectionipynb)
+- [Troubleshooting](#11-troubleshooting)
+
+## Additional documentation
+
+- Installation details and OS-specific notes: [INSTALL.md](INSTALL.md)
+- Pipeline runner usage: [PIPELINE_USAGE.md](PIPELINE_USAGE.md)
+- Expected outputs and file formats: [EXPECTED_OUTPUTS.md](EXPECTED_OUTPUTS.md)
+- Testing results summary: [TESTING_SUMMARY.md](TESTING_SUMMARY.md)
+- Code quality improvements: [QUALITY_IMPROVEMENTS.md](QUALITY_IMPROVEMENTS.md)
+- Contributing guidelines: [CONTRIBUTING.md](CONTRIBUTING.md)
+
 ---
 
 ## 1. Installation
@@ -52,6 +76,8 @@ conda activate marscone
 conda install -c conda-forge gdal geopandas rasterio fiona pyproj shapely pandas numpy matplotlib scikit-image tqdm
 ```
 
+For OS-specific setup steps and pip-based installation alternatives, see [INSTALL.md](INSTALL.md).
+
 ## 2. Repository structure
 
 A minimal layout (simplified):
@@ -87,6 +113,7 @@ A typical project tree under a chosen base directory (configured in config.json)
 test_set/
 ├─ input/
 │  ├─ dem/                   # Input DEM(s)
+│  ├─ crop/                  # Shape file with area for each cone (optional insted off points)
 │  └─ points/                # Cone center points (for point-based workflow)
 ├─ db/
 │  └─ database.gpkg          # GeoPackage with profiles & detected points
@@ -133,6 +160,7 @@ After this step, the folder structure will look like:
 data/
 └─ test_set/
    ├─ input/
+   │  ├─ crop/   
    │  ├─ dem/
    │  │  └─ DTEEC_043987_1825_035521_1825_A01.tif
    │  └─ points/
@@ -140,6 +168,8 @@ data/
    └─ output/
 ```
 You can then run the full MarsCONE workflow on this demo set using the default config.json files for Generator, Finder and Analyzer
+
+For the automated pipeline runner and CLI options, see [PIPELINE_USAGE.md](PIPELINE_USAGE.md).
 
 ## 4. Configuration files
 ### 4.1. Generator configuration (generator-py/config.json)
@@ -325,6 +355,8 @@ The recommended workflow is:
 2.	Finder – detect bottom, top, and center points along each transect
 3.	Analyzer – compute cone-level metrics and export GIS-ready layers
 
+For an end-to-end script that runs all steps, see [PIPELINE_USAGE.md](PIPELINE_USAGE.md). A concise test status overview is in [TESTING_SUMMARY.md](TESTING_SUMMARY.md).
+
 Because each module has its own config.json, you can:
 -	run modules independently (even on different data sets), but you must keep the path chain consistent:
     -	Analyzer’s paths.input.profiles must point to Generator’s profiles_whole output
@@ -366,9 +398,11 @@ Configured in generator-py/config.json:
 - Full profiles in paths.output.profiles_whole
 - Optionally cropped profiles in paths.output.profiles_cropped
 - GeoPackage layers:
-- transects – transect lines
-- profiles – profile geometries and sample points
-- optionally buffers and masks layers if Generator writes them
+  - transects – transect lines
+  - profiles – profile geometries and sample points
+  - optionally buffers and masks layers if Generator writes them
+
+For file counts and exact paths used in the demo dataset, see [EXPECTED_OUTPUTS.md](EXPECTED_OUTPUTS.md).
 
 ### 6.4. Running Generator
 
@@ -428,6 +462,8 @@ Finder expects:
     - status flags (accepted/refined/etc., depending on implementation)
 - CSV file at paths.output.results_csv (default output/finder/finder_method.csv)
 
+For output examples and structure, see [EXPECTED_OUTPUTS.md](EXPECTED_OUTPUTS.md).
+
 ### 7.4. Running Finder
 
 From the repository root:
@@ -470,6 +506,13 @@ In general, the workflow is:
 2. Optionally **refine** the position around local maxima/minima.
 3. If this fails or is ambiguous, fall back to a series of **hierarchical fallbacks**.
 4. If no valid candidate can be found, the algorithm may keep the original reference point (e.g. the top) and mark the status as a fallback.
+
+**Smoothing parameters (default settings):**
+- **Savitzky–Golay filter** for profile smoothing uses a window size of **17** samples and a polynomial degree of **3** (see `finder-py/finder/smooth.py`).
+- **Adaptive moving-window mean** used during bottom detection applies a rolling mean with window size
+  `min(5, max(1, len(segment) // 5))` before computing slope (see `detect_bottom_adaptive` in `finder-py/main.py`).
+
+For background on parameter choices and quality checks, see [QUALITY_IMPROVEMENTS.md](QUALITY_IMPROVEMENTS.md).
 
 #### How the adaptive slope-based method works in Finder
 
@@ -568,6 +611,8 @@ Configured in analyzer-py/config.json:
 - csv.sep – CSV separator (default ";")
 - shape.crs – CRS string (same as Generator)
 
+For a full list of Analyzer outputs and formats, see [EXPECTED_OUTPUTS.md](EXPECTED_OUTPUTS.md).
+
 ### 8.3. Per-transect metrics
 
 Analyzer typically:
@@ -644,6 +689,8 @@ Analyzing cone geometry: 100%|████████████████�
 If an expert centers file is found in paths.input.centers, you may additionally see logs about hybrid center computation.
 
 ## 9. Example outputs
+
+For a complete list of outputs, file counts, and formats, see [EXPECTED_OUTPUTS.md](EXPECTED_OUTPUTS.md).
 ### 9.1. GIS view of MarsCONE results
 
 After running all three modules (Generator → Finder → Analyzer), the results can be inspected directly in a GIS (e.g. QGIS, ArcGIS) using the GeoPackage specified in the configs (typically `db/database.gpkg`) and the output layers created by Analyzer (`output/analyzer/marscone.gpkg`).
@@ -843,6 +890,7 @@ For each selected cone and axis, the notebook computes and annotates:
 - GDAL / PROJ errors<br/>
         Make sure you are using the marscone Conda environment created from marscone_env.yml.<br/>
         On some systems you may need to set PROJ_LIB and GDAL_DATA manually.
+  See [INSTALL.md](INSTALL.md) for OS-specific steps.
 - Generator produces no profiles<br/>
 	    Check generator-py/config.json paths (paths.base, paths.input.*)<br/>
 	    Make sure masks or points exist and the CRS matches the DEM (crs entry)

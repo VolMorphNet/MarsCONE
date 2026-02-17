@@ -1,0 +1,10 @@
+"""MANIFEST.in - Include additional files in package distribution."""
+
+include README.md
+include LICENSE
+include marscone_env.yml
+recursive-include tests *
+recursive-include examples *
+recursive-include analyzer-py *.py *.json
+recursive-include finder-py *.py *.json
+recursive-include generator-py *.py *.json

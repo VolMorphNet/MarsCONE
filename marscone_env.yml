@@ -15,4 +15,13 @@ dependencies:
   - matplotlib
   - tqdm
   - scikit-image
+  - jupyter
   - pip
+  - pip:
+    - nbconvert
+    - pytest
+    - pytest-cov
+    - pylint
+    - black
+    - isort
+    - flake8

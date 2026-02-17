@@ -1,21 +1,37 @@
-import glob
-import numpy as np
-import pandas as pd
-import geopandas as gpd
-import shapely
-from shapely.geometry import LineString, Point
-from osgeo import gdal
-from os.path import join, basename
+"""Elevation profile extraction from DEM data.
+
+Samples DEM rasters along transects to generate elevation profiles
+for cone morphometric analysis.
+"""
+
 import os
-from tqdm import tqdm
 import warnings
 from os import makedirs
+from os.path import join
+
+import geopandas as gpd
+import numpy as np
+import shapely
+from osgeo import gdal
+from shapely.geometry import Point
+from tqdm import tqdm
 
 warnings.filterwarnings("ignore", category=shapely.errors.ShapelyDeprecationWarning)
 
 GREEN = "\033[92m"
 
-def generate_profiles(config):
+
+def generate_profiles(config):  # pylint: disable=too-many-locals,too-many-statements
+    """Generate elevation profiles from DEM along transects.
+
+    Samples DEM raster values at regular intervals along each transect
+    to create slope and elevation profiles.
+
+    Parameters
+    ----------
+    config : dict
+        Configuration dictionary with paths and parameters.
+    """
     base = config["paths"]["base"]
     db_path = join(base, config["paths"]["db"])
     dem_dir = join(base, config["paths"]["output"]["dem_cropped"])
@@ -24,25 +40,27 @@ def generate_profiles(config):
     profiles_layer = config["db_layers"]["profiles"]
     crs = config["crs"]
     resolution = config["parameters"]["profile_resolution"]
-    mode = config.get("mode", "masks")
 
     gdf = gpd.read_file(db_path, layer=transects_layer).to_crs(crs)
 
     profiles = []
 
-    for idx, row in tqdm(gdf.iterrows(), total=len(gdf), desc="... generating profiles"):
+    for idx, row in tqdm(
+        gdf.iterrows(), total=len(gdf), desc="... generating profiles"
+    ):
         transect_id = row.get("id", idx + 1)
         line = row.geometry
 
         cone_id_raw = str(row.get("cone_id", transect_id))
         # We separate the ID from the angle, e.g. 12_45deg -> 12
-        if "_" in cone_id_raw and cone_id_raw.split("_")[-1].endswith("deg"):
-            cone_id = "_".join(cone_id_raw.split("_")[:-1])
+        if "_" in cone_id_raw and cone_id_raw.rsplit("_", maxsplit=1)[-1].endswith(
+            "deg"
+        ):
+            cone_id = cone_id_raw.rsplit("_", maxsplit=1)[0]
         else:
             cone_id = cone_id_raw
-        
-        orientation = row.get("orientation", None)
 
+        orientation = row.get("orientation", None)
 
         dem_file = join(dem_dir, f"cone_{cone_id}_dem.tif")
         slope_file = join(slope_dir, f"cone_{cone_id}_slope.tif")
@@ -72,17 +90,19 @@ def generate_profiles(config):
                 slope_val = arr_slope[row, col]
                 if elev == nodata:
                     elev = np.nan
-                profiles.append({
-                    "transect_id": transect_id,
-                    "cone_id": cone_id,
-                    "distance": dist,
-                    "x_geo": pt.x,
-                    "y_geo": pt.y,
-                    "elevation": elev,
-                    "slope": slope_val,
-                    "geometry": Point(pt.x, pt.y),
-                    "orientation": orientation
-                })
+                profiles.append(
+                    {
+                        "transect_id": transect_id,
+                        "cone_id": cone_id,
+                        "distance": dist,
+                        "x_geo": pt.x,
+                        "y_geo": pt.y,
+                        "elevation": elev,
+                        "slope": slope_val,
+                        "geometry": Point(pt.x, pt.y),
+                        "orientation": orientation,
+                    }
+                )
             dist += resolution
 
     if not profiles:
@@ -101,7 +121,7 @@ def generate_profiles(config):
             join(out_csv_dir, f"profile_{transect_id}.csv"),
             sep=";",
             index=False,
-            encoding="utf-8"
+            encoding="utf-8",
         )
 
     print(f"✔ {GREEN}Exported profiles as individual CSV files to {out_csv_dir}")
