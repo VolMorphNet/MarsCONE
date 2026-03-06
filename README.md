@@ -40,6 +40,18 @@ The code is written in Python and uses standard geospatial libraries (GDAL, GeoP
 
 ## 1. Installation
 
+> **Important:** use [INSTALL.md](INSTALL.md) as the primary installation reference.<br/>
+> **Recommended for all fresh installations:** <br/>`conda env create -f marscone_env.yml` <br/>
+> `requirements.txt` is **not** a standalone installation method for a clean system.<br/>
+> Use `pip install -r requirements.txt` **only if** GDAL/OSGeo is already available in the environment (via Conda/Mamba or system packages).<br/>
+> Otherwise, you may get: `ModuleNotFoundError: No module named 'osgeo'`.
+
+### Quick installation choice
+
+- **Fresh installation / most users** → use the recommended **Conda/Mamba-based installation**: `conda env create -f marscone_env.yml`
+- **Existing Conda environment with GDAL already installed** → use `pip install -r requirements.txt`
+- **System Python without GDAL/OSGeo** → do **not** use `requirements.txt` alone
+
 ### 1.1. Prerequisites
 
 - Conda (Miniconda / Mamba / Anaconda)
@@ -891,6 +903,9 @@ For each selected cone and axis, the notebook computes and annotates:
         Make sure you are using the marscone Conda environment created from marscone_env.yml.<br/>
         On some systems you may need to set PROJ_LIB and GDAL_DATA manually.
   See [INSTALL.md](INSTALL.md) for OS-specific steps.
+- `ModuleNotFoundError: No module named 'osgeo'` after `pip install -r requirements.txt`<br/>
+  `requirements.txt` does not install OS-level GDAL bindings by itself.<br/>
+  Use the Conda environment from `marscone_env.yml` or follow the pip prerequisites in [INSTALL.md](INSTALL.md).
 - Generator produces no profiles<br/>
 	    Check generator-py/config.json paths (paths.base, paths.input.*)<br/>
 	    Make sure masks or points exist and the CRS matches the DEM (crs entry)
@@ -904,7 +919,5 @@ For each selected cone and axis, the notebook computes and annotates:
 	    Ensure that a *.shp or *.gpkg with expert centers is placed in paths.input.centers<br/>
 	    Ensure the file contains a cone_id field compatible with the IDs used in the pipeline
 
-## 12. Citation
-Śledziowski, J., Pieterek, B., & Jones, T. J. (2025). MarsCONE: A toolbox for automatic detection of Martian pitted cones morphology (1.0.0). Zenodo. https://doi.org/10.5281/zenodo.17887603
 
 

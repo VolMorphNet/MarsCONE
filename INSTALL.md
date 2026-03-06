@@ -3,7 +3,7 @@
 ## Prerequisites
 
 Before installing MarsCONE, ensure you have:
-- Python 3.8 or higher
+- Python 3.10 recommended (Python >=3.8 supported)
 - pip (Python package installer)
 - System libraries for GDAL/GEOS (for GIS operations)
 
@@ -81,6 +81,9 @@ python -c "import geopandas; import numpy; print('Installation OK')"
 
 ⚠️ **IMPORTANT**: This method requires system GDAL/GEOS libraries installed at OS level. See System-Specific Setup above. NOT recommended for beginners - use Option 1 (conda) instead.
 
+`pip install -r requirements.txt` **alone is not sufficient** for a fresh installation.
+You must first provide GDAL/OSGeo (`osgeo`) via Conda/Mamba or system packages.
+
 **macOS with Homebrew:**
 ```bash
 # Step 1: Install system GDAL libraries (REQUIRED)
@@ -115,11 +118,22 @@ pip install -r requirements.txt
 - **Recommendation**: Use conda (Option 1) unless you have experience with geospatial dependencies
 
 **Dependency Strategy**: The `requirements.txt` uses flexible versioning (`>=`) to ensure compatibility with PyPI:
-- Core scientific packages are pinned at minimum stable versions
+- Core scientific packages use minimum tested versions (`>=`)
 - Development tools (black, pylint, flake8, isort, ruff) use `>=` versioning
-- For exact reproducibility with pinned versions, use conda with `marscone_env.yml` instead
+- For better reproducibility across machines, prefer conda with `marscone_env.yml`
 
 ### Option 3: Hybrid Approach (Conda + pip)
+
+Recommended hybrid variant:
+
+```bash
+mamba create -n marscone python=3.10
+mamba activate marscone
+conda install -c conda-forge gdal geopandas
+pip install -r requirements.txt
+```
+
+Equivalent conda-based variant:
 
 ```bash
 # Create conda environment (handles System dependencies like GDAL)
@@ -154,6 +168,8 @@ pip install -e .
 ```bash
 pip install -e .
 ```
+
+Note: this option also requires GDAL/OSGeo to be available in the environment beforehand.
 
 ## Verification
 
@@ -286,10 +302,10 @@ pytest tests/ -v --cov
 ### requirements.txt (pip)
 
 - **Use when**: You already have system dependencies installed
-- **Advantages**: Lightweight, reproducible across systems
+- **Advantages**: Lightweight for existing environments
 - **Install**: `pip install -r requirements.txt`
-- **Includes**: All pip-installable packages with pinned versions
-- **Note**: Requires Python 3.8+ and system libraries pre-installed
+- **Includes**: All pip-installable packages with minimum compatible versions (`>=`)
+- **Note**: Requires Python 3.8+ and GDAL/GEOS available before pip install
 
 ### Choosing Between Them
 
@@ -298,9 +314,9 @@ pytest tests/ -v --cov
 | Fresh installation | Use `marscone_env.yml` |
 | Mac/Linux with Homebrew | Use `marscone_env.yml` |
 | Windows | Use `marscone_env.yml` |
-| Existing conda environment | Use `requirements.txt` |
+| Existing conda environment with GDAL already installed | Use `requirements.txt` |
 | Docker/CI/CD | Use both (conda base + pip track) |
-| Reproducing exact builds | Use `requirements.txt` for consistency |
+| Reproducing exact builds | Use `marscone_env.yml` |
 
 ## Quick Start After Installation
 
