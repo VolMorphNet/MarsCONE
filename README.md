@@ -1,923 +1,728 @@
-# MarsCONE: A toolbox for automatic detection of Martian pitted cones morphology 
+# MarsCONE 2.0 
 
-<img src="https://c5studio.pl/marscone/marscone-logo.png" width="200px">
+MarsCONE 2.0 is a PySide6 MVP desktop application for running the MarsCONE processing
+pipeline and reviewing its outputs in a single GUI. It is designed as a thin
+desktop layer on top of the existing development modules in `../dev`, with extra
+tools for visual QA, manual correction, complex-cone aggregation, and
+cross-dataset comparison.
 
-**MarsCONE** is a command-line tool for **automatic morphometric analysis of cone-like landforms** (e.g. volcanic cones, impact-related features) using digital elevation models (DEMs).
+The MVP does not execute code in `../dev` in place. Instead, it copies the
+selected module folders into a temporary runtime workspace, generates fresh
+`config.json` files for them, and runs the copied code there. This reduces the
+risk of accidental edits to the development sources and makes each run more
+reproducible.
 
-The workflow consists of three main modules:
+## What The MarsCONE 2.0 Covers
 
-1. **Generator** – crops DEMs around cones and generates radial transects & elevation profiles  
-2. **Finder** – detects characteristic points (bottom, top, center) along each transect  
-3. **Analyzer** – aggregates transect-level detections into cone-scale metrics and exports GIS-ready outputs  
+The application currently covers these workflows:
 
-The code is written in Python and uses standard geospatial libraries (GDAL, GeoPandas, Rasterio, Shapely).
+- configure project paths and module parameters,
+- run `generator`, `finder`, and `analyzer` separately or as one full pipeline,
+- inspect analyzer results and input diagnostics,
+- generate and review cross-section figures and metrics,
+- manually correct finder points on cross-sections,
+- generate DEM overlays for visual QA,
+- define and summarize complex cones,
+- elevations explorer for problematic cones,
+- explore plots for a single dataset,
+- compare multiple datasets in a shared metric space.
 
-## Table of contents
+## Runtime Model
 
-- [Additional documentation](#additional-documentation)
-- [Installation](#1-installation)
-- [Repository structure](#2-repository-structure)
-- [Data and configuration](#3-data-and-configuration)
-- [Configuration files](#4-configuration-files)
-- [Workflow overview](#5-workflow-overview)
-- [Module 1 – Generator](#6-module-1--generator)
-- [Module 2 – Finder](#7-module-2--finder)
-- [Module 3 – Analyzer](#8-module-3--analyzer)
-- [Example outputs](#9-example-outputs)
-- [Cross-section notebook](#10-cross-section-notebook-cross-sectionipynb)
-- [Troubleshooting](#11-troubleshooting)
+The GUI is intentionally separated from the development code in `../dev`.
 
-## Additional documentation
+When you run a module from the MVP:
 
-- Installation details and OS-specific notes: [INSTALL.md](INSTALL.md)
-- Pipeline runner usage: [PIPELINE_USAGE.md](PIPELINE_USAGE.md)
-- Expected outputs and file formats: [EXPECTED_OUTPUTS.md](EXPECTED_OUTPUTS.md)
-- Testing results summary: [TESTING_SUMMARY.md](TESTING_SUMMARY.md)
-- Code quality improvements: [QUALITY_IMPROVEMENTS.md](QUALITY_IMPROVEMENTS.md)
-- Contributing guidelines: [CONTRIBUTING.md](CONTRIBUTING.md)
+1. the app reads the current form state,
+2. it builds a module-specific `config.json`,
+3. it copies the required source folder from `dev_root` into `.runtime/session_*`,
+4. it runs the copied module with the selected Python interpreter,
+5. it streams logs back into the desktop UI,
+6. it reloads relevant results when the process finishes.
 
----
+This behavior is implemented in `marscone_mvp/pipeline.py`.
 
-## 1. Installation
+## Requirements
 
-> **Important:** use [INSTALL.md](INSTALL.md) as the primary installation reference.<br/>
-> **Recommended for all fresh installations:** <br/>`conda env create -f marscone_env.yml` <br/>
-> `requirements.txt` is **not** a standalone installation method for a clean system.<br/>
-> Use `pip install -r requirements.txt` **only if** GDAL/OSGeo is already available in the environment (via Conda/Mamba or system packages).<br/>
-> Otherwise, you may get: `ModuleNotFoundError: No module named 'osgeo'`.
+Use the same Python environment that can already run the MarsCONE modules from
+`../dev`. The MVP also requires PySide6 and the geospatial/scientific stack used
+by the project.
 
-### Quick installation choice
-
-- **Fresh installation / most users** → use the recommended **Conda/Mamba-based installation**: `conda env create -f marscone_env.yml`
-- **Existing Conda environment with GDAL already installed** → use `pip install -r requirements.txt`
-- **System Python without GDAL/OSGeo** → do **not** use `requirements.txt` alone
-
-### 1.1. Prerequisites
-
-- Conda (Miniconda / Mamba / Anaconda)
-- GDAL and PROJ available through `conda-forge` (handled by the environment file)
-- Python 3.10 (installed via the env)
-
-### 1.2. Create and activate the environment
-
-From the repository root:
+Typical environment:
 
 ```bash
-conda env create -f marscone_env.yml
 conda activate marscone
+pip install PySide6
+python main.py
 ```
 
-The marscone_env.yml file installs:
-- gdal
-- geopandas
-- rasterio
-- fiona
-- pyproj
-- shapely
+The codebase expects libraries that are already used throughout MarsCONE,
+including at least:
+
+- PySide6
 - pandas
 - numpy
 - matplotlib
-- scikit-image
-- tqdm
+- geopandas
+- rasterio
+- shapely
 
-If you already have an environment, you can also install packages manually:
+## Demo Dataset With MarsCONE
 
-```bash
-conda create -n marscone python=3.10
-conda activate marscone
-conda install -c conda-forge gdal geopandas rasterio fiona pyproj shapely pandas numpy matplotlib scikit-image tqdm
-```
+MVP uses the same demo dataset as the standard MarsCONE workflow: `test_set`.
 
-For OS-specific setup steps and pip-based installation alternatives, see [INSTALL.md](INSTALL.md).
+If you already downloaded demo data for MarsCONE, MVP can reuse it directly
+without downloading anything again. The default `base_path` now points to:
 
-## 2. Repository structure
+- `../dev/data/test_set` relative to MVP root.
 
-A minimal layout (simplified):
-
-```bash
-marscone/
-├─ generator-py/
-│  ├─ main.py            # Generator CLI
-│  ├─ pgen.py/            # DEM cropping, transects, profiles (imported as `pgen`)
-│  └─ config.json        # Generator configuration
-├─ finder-py/
-│  ├─ main.py            # Finder CLI
-│  ├─ finder/             # Shape detections and smooth filter
-│  └─ config.json        # Finder configuration
-├─ analyzer-py/
-│  ├─ main.py            # Analyzer CLI
-│  ├─ analyzer/           # Basic functions
-│  └─ config.json        # Analyzer configuration
-├─ marscone_env.yml      # Conda environment definition
-└─ data/                 # Input/Output data (Input - DEM, points, and Outputs)
-```
-
-**Important**: Each module reads its own config.json located in its folder:
-- generator-py/config.json
-- finder-py/config.json
-- analyzer-py/config.json
-
-
-## 3. Data and configuration
-
-A typical project tree under a chosen base directory (configured in config.json) may look like:
-```bash
-test_set/
-├─ input/
-│  ├─ dem/                   # Input DEM(s)
-│  ├─ crop/                  # Shape file with area for each cone (optional insted off points)
-│  └─ points/                # Cone center points (for point-based workflow)
-├─ db/
-│  └─ database.gpkg          # GeoPackage with profiles & detected points
-└─ output/
-   ├─ generator/             
-      ├─ dem/                # Cropped DEM
-      ├─ profiles/           # Generated transects in CSV files
-   ├─ finder/
-   │  └─ finder_method.csv   # Finder detections (bottom/top/center)
-   └─ analyzer/
-      ├─ results.csv         # Per-transect metrics
-      ├─ cone_summary.csv    # Aggregated final cone metrics
-      ├─ marscone.gpkg       # Final files with detected points that can be used in GIS
-      └─ shapes/             # GeoJSON / GPKG outputs
-```
-
-### 3.1. Input data
-- DEM file should be in geotif format with coordinates (CRS)
-- The shapefile with the same CRS should contain a vector layer of points with the centres of the cones (see example in demo data (section 3.2.)).<br/>
-**Important!**<br/>
-Each point must have a separate ID. This ID will be used to define the results in the further process. 
-
-![MarsCONE input data](https://c5studio.pl/marscone/input-data.png)
-
-### 3.2. Downloading the demo dataset
-A small demo dataset (`test_set`) is provided as a ZIP archive hosted externally on ZENODO repository (~183 MB zip file and ~450 MB unzipped).
-
-Dowload demo set from Zenodo https://doi.org/10.5281/zenodo.17885902 or use script described below.
-
-From the repository root, run:
+If `test_set` is not available yet, download it exactly as in MarsCONE docs
+using the existing downloader script from the MarsCONE repository root:
 
 ```bash
 conda activate marscone
 python download_demo_data.py
 ```
-This will:
-	•	create a local data/ directory (if it does not exist),
-	•	download test_set.zip from the configured URL,
-	•	unpack it into data/test_set,
-	•	remove the ZIP file after successful extraction.
 
-After this step, the folder structure will look like:
-```bash
+This will create:
+
+```text
 data/
-└─ test_set/
-   ├─ input/
-   │  ├─ crop/   
-   │  ├─ dem/
-   │  │  └─ DTEEC_043987_1825_035521_1825_A01.tif
-   │  └─ points/
-   │     └─ cones.shp
-   └─ output/
-```
-You can then run the full MarsCONE workflow on this demo set using the default config.json files for Generator, Finder and Analyzer
-
-For the automated pipeline runner and CLI options, see [PIPELINE_USAGE.md](PIPELINE_USAGE.md).
-
-## 4. Configuration files
-### 4.1. Generator configuration (generator-py/config.json)
-
-This config controls DEM cropping, transect generation, and profile extraction.
-
-Example:
-```bash
-{
-  "paths": {
-    "base": "../data/test_set",
-    "input": {
-      "masks": "input/crop",
-      "dem": "input/dem",
-      "points": "input/points"
-    },
-    "output": {
-      "dem_cropped": "output/generator/dem/cropped",
-      "dem_slope": "output/generator/dem/slope",
-      "profiles_whole": "output/generator/profiles/whole",
-      "profiles_cropped": "output/generator/profiles/cropped"
-    },
-    "db": "db/database.gpkg"
-  },
-  "db_layers": {
-    "points": "points",
-    "transects": "transects",
-    "profiles": "profiles",
-    "buffers": "buffers",
-    "masks": "cones"
-  },
-  "crs": "+proj=eqc +lat_ts=0 +lat_0=0 +lon_0=146.79 +x_0=0 +y_0=0 +R=3396190 +units=m +no_defs=True",
-  "parameters": {
-    "transect_length": 300,
-    "profile_resolution": 1,
-    "buffer_width": 300,
-    "mode": "auto",
-    "transect_angle_step": 45
-  }
-}
+	test_set/
+		input/
+			crop/
+			dem/
+			points/
+		output/
 ```
 
-**Key elements:** 
-- paths.base
-Root directory for all data related to this run (DEM, masks, outputs, DB).
-In this example, the module will operate on data/test_set.
-- paths.input
-    - masks: polygon masks outlining cones (input/crop inside paths.base)
-    - dem: DEM rasters (input/dem)
-    - points: optional cone center points (input/points), used depending on mode
-- paths.output
-    - dem_cropped: where cropped DEM tiles are stored
-    - dem_slope: optional slope rasters
-    - profiles_whole: full elevation for each transect
-    - profiles_cropped: cropped profiles if used by your workflow
-- paths.db
-    Path to the GeoPackage database, relative to paths.base (here db/database.gpkg).
-    - db_layers (layer names inside the GeoPackage):
-    - points: point layer (can be used later by Finder/Analyzer)
-    - transects: line layer storing transect geometries
-    - profiles: line layer with profile geometry/vertices
-    - buffers: polygon layer used for cone buffers
-    - masks: polygon layer for cone masks (here named cones)
-- crs
-    Project CRS (here an equirectangular projection for Mars with radius 3,392,593.611 m).
-	- parameters
-        - transect_length: radial transect length (map units, here 250 m)
-        - profile_resolution: spacing of sample points along profiles (here 1 m)
-        - buffer_width: buffer radius around masks/points used when cropping DEM
-        - mode:
-        - "auto" – Generator decides based on available inputs (masks vs points)
-            - other modes can be added ("mask", "points")
-        - transect_angle_step: angular spacing between transects (here ~5.63° → 64 transects)
+After download, set `Dev root` to your MarsCONE `dev` folder and use
+`Base path = <dev_root>/data/test_set` if it is not picked automatically.
 
-### 4.2. Finder configuration (finder-py/config.json)
+## Required Directory Layout
 
-This config controls where Finder reads/writes data and how it classifies shapes.
+The MarsCONE 2.0 works with two main roots:
 
-Example:
-``` bash
-{
-  "paths": {
-    "base": "../data/test_set",
-    "db": "db/database.gpkg",
-    "output": {
-      "results_csv": "output/finder/finder_method.csv"
-    }
-  },
-  "db_layers": {
-    "profiles": "profiles",
-    "points": "points"
-  }
-}
+### `dev_root`
+
+This must point to the MarsCONE development workspace that contains the runtime
+modules:
+
+```text
+dev/
+	generator-py/
+	finder-py/
+	analyzer-py/
 ```
 
-**Key elements:**   
-- paths.base<br/>
-    Same base directory as in Generator, so that both work on the same dataset.
-- paths.db<br/>
-    Path to the GeoPackage (db/database.gpkg relative to paths.base).
-- paths.output.results_csv<br/>
-    CSV file where Finder will export all detected bottom/top/center points.<br/>
-    Default: output/finder/finder_method.csv (inside paths.base).
-- db_layers
-    - profiles: name of the profile line layer created/populated by Generator
-    - points: name of the point layer where Finder will store detected points
+### `base_path`
 
-### 4.3. Analyzer configuration (analyzer-py/config.json)
+This must point to one dataset workspace. The GUI builds most default paths from
+this folder.
 
-This config controls input/output paths for Analyzer, CSV options, CRS, and exporting GeoJSON.
+Expected structure:
 
-Example:
-``` bash
-{
-  "paths": {
-    "base": "../data/test_set",
-    "input": {
-      "profiles": "output/generator/profiles/whole",
-      "points": "output/finder",
-      "centers": "input/points"
-    },
-    "output": {
-      "shapes": "output/analyzer/shapes",
-      "csv": "output/analyzer/results.csv"
-    },
-    "db": "db/database.gpkg"
-  },
-  "csv": {
-    "sep": ";"
-  },
-  "shape": {
-    "crs": "+proj=eqc +lat_ts=0 +lat_0=0 +lon_0=146.79 +x_0=0 +y_0=0 +R=3396190 +units=m +no_defs=True"
-  },
-  "selected_profiles": [],
-  "buffer_distance": 1.0,
-  "export_geojson": false,
-  "export_summary_gpkg": true
-}
+```text
+base_path/
+	input/
+		dem/
+		crop/
+		points/
+	db/
+		database.gpkg
+	output/
+		generator/
+			dem/
+				cropped/
+				slope/
+			profiles/
+				whole/
+				cropped/
+		finder/
+			finder_method.csv
+		analyzer/
+			results.csv
+			cone_summary.csv
+			fix_cone_summary.csv
+			shapes/
+		figures/
+			cross_sections/
+			dem_overlay/
+			complex_cones/
 ```
 
-**Key elements:**
-- paths.base 
-        Same dataset root as in Generator and Finder.
-- paths.input
-    - profiles: directory with profile CSVs generated by Generator default: output/generator/profiles/whole
-    - points: directory where Finder wrote its CSV - Analyzer expects finder_method.csv inside this folder
-    - centers: folder with expert crater center points - default: input/points
-- paths.output
-    - shapes: directory for Analyzer’s vector outputs (buffers, centers, etc.)
-    -	csv: first calculated CSV file (per-transect and/or per-cone metrics).
-    -	default: output/analyzer/results.csv
-- paths.db<br/>
-    Path to the GeoPackage (db/database.gpkg).
-- csv.sep<br/>
-    CSV separator used when reading/writing profile and results tables (here ";").
-- shape.crs<br/>
-    CRS used by Analyzer, should match the projection of DEM and vector layers (same Mars equirectangular projection as in Generator).
-- classification.shape_threshold<br/>
-    Threshold used for simple shape classification (flat/convex/concave). This value should depend on DEM resolution - in test set 1px = 1m. <br/>
-    Analyzer compares the mean elevation of the crater centre (`center_elev`) to the mean rim elevation (`top_elev`) using this parameter.
-    - if `|center_elev − top_elev| < shape_threshold`  
-    → **`flat`**
-    - if `center_elev < top_elev` and the absolute difference is ≥ `shape_threshold`  
-    → **`concave`** (well-developed crater floor below the rim)
-    - if `center_elev > top_elev` and the absolute difference is ≥ `shape_threshold`  
-    → **`convex`** (domed summit without a clear depression)<br/>
-    If no `shape_threshold` is provided in the Analyzer config, the default value `0.5` m is used.
-- selected_profiles<br/>
-    List of profile IDs to analyze (empty list means “use all profiles”).
-- buffer_distance<br/>
-    Buffer radius (map units) used when constructing cone footprints for GIS output.
-- export_geojson<br/>
-If true, Analyzer exports additional GeoJSON summaries per transect/cone.
-If false, only CSV and GeoPackage outputs are produced.
-- export_summary_gpkg<br/>
-If true, Analyzer exports final GeoPackage with detected points and elipses.
-If false, only CSV and GeoPackage outputs are produced.
+Not every file exists from the start. Only input folder is required to start process. Some are generated by the pipeline or by the QA tools in later tabs. 
 
-## 5. Workflow overview
+## Quick Start
 
-The recommended workflow is:
-1.	Generator – prepare cropped DEMs, transects, and elevation profiles
-2.	Finder – detect bottom, top, and center points along each transect
-3.	Analyzer – compute cone-level metrics and export GIS-ready layers
+1. Start the application with `python main.py`.
+2. In the `App` tab, set `Dev root`, `Base path`, and `Python executable`.
+3. Review generator, CRS, finder, and analyzer parameters.
+4. Click `Validate paths` to verify the current dataset layout.
+5. Click `Run full pipeline` or run individual modules.
+6. Use the remaining tabs to inspect, correct, and compare outputs.
 
-For an end-to-end script that runs all steps, see [PIPELINE_USAGE.md](PIPELINE_USAGE.md). A concise test status overview is in [TESTING_SUMMARY.md](TESTING_SUMMARY.md).
+## Recommended Workflow
 
-Because each module has its own config.json, you can:
--	run modules independently (even on different data sets), but you must keep the path chain consistent:
-    -	Analyzer’s paths.input.profiles must point to Generator’s profiles_whole output
-    -	Analyzer’s paths.input.points must point to Finder’s output folder with finder_method.csv
-    -	all modules should share the same paths.base and db paths for a given project
+### Standard processing workflow
 
-## 6. Module 1 – Generator
+1. Configure `App` parameters.
+2. Run `generator`.
+3. Run `finder`.
+4. Run `analyzer`.
+5. Review the results table and logs.
+6. Use `Cross-section`, `DEM overlay`, and `Graphs` for QA.
 
-``` bash
-generator-py/main.py
+### Manual correction workflow
+
+1. Generate cross-sections in the `Cross-section` tab.
+2. Load the current preview into `Manual Fix`.
+3. Save corrected points to `manual_point_overrides.csv`.
+4. Re-run `Analyzer` with `Use manual fix` enabled.
+5. Review updated metrics in `Graphs`, `Dataset compare`, or `Complex Cones`.
+
+### Complex or breached cone workflow
+
+1. Inspect the cone in `DEM overlay` and `Cross-section`.
+2. Use `Elevation Explorer` for manual profile inspection if needed.
+3. Define multi-cone systems in `Complex Cones`.
+4. Compute aggregated outputs and export merged DEM previews.
+
+## Tabs And Options
+
+The main window is assembled in `marscone_mvp/main_window.py` from mixins in
+`marscone_mvp/tabs/`. Each section below describes the actual UI that is exposed
+today.
+
+### App
+
+Implemented in `marscone_mvp/tabs/app_tab.py`.
+
+This tab is the control center for project configuration, pipeline execution,
+results loading, diagnostics, and logs.
+
+#### Project group
+
+- `Dev root`: folder containing `generator-py`, `finder-py`, and `analyzer-py`.
+- `Base path`: dataset root containing input, output, and database folders.
+- `Python executable`: interpreter used to launch pipeline scripts.
+
+#### Parameters group
+
+Generator:
+
+- `Mode`: `auto`, `masks`, or `points`.
+- `Transect length`: total profile length around each cone center.
+- `Profile resolution`: sampling step along a transect.
+- `Buffer width`: corridor half-width used during profile extraction.
+- `Angle step`: angular spacing between transects.
+
+CRS:
+
+- `Mode`: `auto` or `manual`.
+- `Auto source`: prefer CRS from `dem`, `masks`, or `points`.
+- `Manual CRS`: manual EPSG or PROJ value.
+- `Set PROJ_IGNORE_CELESTIAL_BODY=YES`: relax body mismatch checks.
+- `Preview resolved CRS`: show the CRS that would be used with the current state.
+
+Finder:
+
+- `Enable profile smoothing`: turn Savitzky-Golay smoothing on or off.
+- `Smoothing window`: smoothing window length in meters.
+- `SavGol polyorder`: polynomial order for smoothing.
+- `Bottom edge guard`: fraction of the outer profile treated as a no-pick edge zone.
+
+Analyzer:
+
+- `Shape threshold`: threshold used for profile shape classification.
+- `Buffer distance`: geometry buffer distance used by analyzer routines.
+- `Quality preset`: `mars`, `terrestrial`, or `bathymetry`.
+- `Set QA...`: edit the threshold set used by the current quality preset.
+- `Use manual fix`: apply saved manual point overrides during analyzer runs.
+- `Export GeoJSON`: export per-transect diagnostics.
+- `Export summary GPKG`: export GeoPackage summary layers.
+
+Quality thresholds available through `Set QA...`:
+
+- minimum transects,
+- height RMSE ratio warning thresholds,
+- bottom-width RMSE ratio warning thresholds,
+- bottom elevation RMSE warning thresholds,
+- center-to-top RMSE warning thresholds.
+
+#### Actions row
+
+- `Save settings`
+- `Read data`
+- `Validate paths`
+- `Run generator`
+- `Run finder`
+- `Run analyzer`
+- `Run full pipeline`
+- `Stop`
+
+#### Results and diagnostics
+
+- `Results`: loads the analyzer summary table into a Qt table model.
+- `Refresh results`: reload current analyzer CSV.
+- `Input diagnostics`: prints path and input checks for the selected dataset.
+- `Logs`: shows pipeline logs from the active process.
+
+#### Main outputs used by this tab
+
+- `output/finder/finder_method.csv`
+- `output/analyzer/results.csv`
+- `output/analyzer/cone_summary.csv`
+- `output/analyzer/fix_cone_summary.csv`
+- `output/analyzer/shapes/*`
+- `app_state.json`
+
+### Cross-section
+
+Implemented in `marscone_mvp/tabs/cross_section_tab.py` and backed by
+`marscone_mvp/cross_section.py` plus `marscone_mvp/cross_section_cli.py`.
+
+This tab generates figure-based cross-sections from generator profiles and
+finder picks, then lets you browse the produced figures and metrics.
+
+#### Settings
+
+- `Profile dir`: usually `output/generator/profiles/whole`.
+- `Finder CSV`: usually `output/finder/finder_method.csv`.
+- `Output dir`: usually `output/figures/cross_sections`.
+- `Cone IDs`: comma-separated list; empty means all cones.
+- `All IDs`: clears the filter.
+- `DPI`: output figure resolution.
+- `Angle tolerance (deg)`: tolerance used to pair opposite transects.
+
+#### Actions
+
+- `Use base-path defaults`
+- `Read data`
+- `Run cross-sections`
+- `Open output folder`
+- `Cross Metrics`
+- `Cone Metrics`
+- `Metrics stats`
+
+#### Preview controls
+
+- previous and next image navigation,
+- cone ID filter,
+- `Use manual fix` for previewing corrected variants when available,
+- source labels showing the current file and image index.
+
+#### Workflow notes
+
+- This tab depends on outputs from `generator` and `finder`.
+- The generated figures are also the source material for the `Manual Fix` tab.
+- If you save manual fixes later, rerun `Analyzer` to rebuild metrics.
+
+### Manual Fix
+
+Implemented in `marscone_mvp/tabs/manual_fix_tab.py`.
+
+This tab allows interactive adjustment of the seven key finder points used along
+paired cross-section profiles.
+
+#### Main controls
+
+- `Load from Cross-section`
+- `Read saved fixes`
+- `Save fixes`
+- `Clear saved fixes`
+
+#### Editable slots
+
+Each current cross-section exposes seven sliders:
+
+- left far bottom,
+- left near bottom,
+- left top,
+- center,
+- right top,
+- right near bottom,
+- right far bottom.
+
+The plot updates as slider positions move along the combined profile.
+
+#### Inputs and outputs
+
+- Input: current cross-section preview, finder CSV, and profile CSV files.
+- Output: `output/figures/cross_sections/manual_point_overrides.csv`.
+
+#### Critical note
+
+Saving or clearing manual fixes does not update analyzer products automatically.
+You must rerun `Analyzer` if you want downstream tables and plots to use the
+corrected points.
+
+### DEM overlay
+
+Implemented in `marscone_mvp/tabs/dem_overlay_tab.py` and backed by
+`marscone_mvp/dem_overlay.py` plus `marscone_mvp/dem_overlay_cli.py`.
+
+This tab creates hillshaded DEM figures with cone geometry overlays for visual
+review of analyzer outputs.
+
+#### Settings
+
+- `DEM dir (cropped)`: folder of cropped DEM rasters per cone.
+- `Database GPKG`: GeoPackage with cone layers.
+- `Output dir`: folder for generated overlay figures.
+- `Centers hybrid GPKG`: optional centers layer used by some previews.
+- `Cone IDs`: comma-separated filter; empty means all.
+- `All IDs`: clears the filter.
+- `Use manual fix metrics`: apply manual-fix metrics where supported.
+- `DPI`
+- `Hillshade azimuth/altitude`
+
+#### Actions
+
+- `Use base-path defaults`
+- `Read data`
+- `Run DEM overlay`
+- `Open output folder`
+
+#### Preview tools
+
+- previous and next navigation,
+- `Area Preview` for generating a context mini-map,
+- cone ID filter,
+- topology override controls for the current cone,
+- a split preview showing the overlay image and context view.
+
+#### Notes
+
+- This tab is intended for QA after `generator`, `finder`, and `analyzer`.
+- It can incorporate manual-fix outputs and breached-cone overrides.
+
+### Complex Cones
+
+Implemented in `marscone_mvp/tabs/complex_cones_tab.py` and backed by
+`marscone_mvp/complex_cones.py`.
+
+This tab handles grouped systems composed of multiple member cones. It is used
+for complex morphologies that should not be interpreted only as isolated cones.
+
+#### Definition fields
+
+- `Complex ID`
+- `Member cone IDs`: comma-separated, for example `33, 39`.
+- `Topology type`: currently `complex`.
+- `Notes`
+- `Use manual fix metrics`
+- `Active`
+
+#### Actions
+
+- `Add / Update`
+- `Remove selected`
+- `Load saved`
+- `Save definitions`
+- `Compute outputs`
+- `Open output folder`
+- `View in DEM`
+
+#### Tables and outputs
+
+- definition table: `Complex pairs`
+- result tabs: `Complex Summary`, `Members`, `Topology`, `Topology Stats`
+- log pane for complex processing messages
+
+Main files written to `output/mvp_complex/`:
+
+- `complex_pairs.csv`
+- `breached_singles.csv`
+- `complex_summary.csv`
+- `complex_members.csv`
+- `cone_topology.csv`
+- `topology_stats.csv`
+
+Additional outputs:
+
+- merged complex DEMs in `output/mvp_complex/dem/`
+- complex figures in `output/figures/complex_cones/`
+
+#### Important behavior
+
+- Complex DEM export merges all member DEM rasters for the selected system.
+- The merged TIFF stores a source signature tag so stale cached single-source
+	outputs are not silently reused.
+- Complex summaries depend on analyzer metrics and finder points being available.
+
+### Elevation Explorer
+
+Implemented in `marscone_mvp/tabs/elevation_explorer_tab.py`.
+
+This tab is intended for manual inspection of elevation profiles for individual
+cones, especially potentially breached or ambiguous cases.
+
+#### Controls
+
+- `Cone ID`
+- `Use current DEM cone`
+- `Refresh profile`
+- `Transect angle` dial and spin box
+- `Transect length (m)`
+- `Sample step (m)`
+
+The `Suggest angle` and `Suggest point` buttons are present in code but hidden,
+because their logic is currently not considered ready.
+
+#### Interactive views
+
+- DEM map with the current transect line,
+- transect elevation profile,
+- click handling on both the map and the profile canvas.
+
+#### Save point section
+
+- selected cone, angle, distance, and elevation,
+- confidence level,
+- notes,
+- `Save point`.
+
+Saved points are displayed in a table in the lower part of the tab.
+
+### Graphs
+
+Implemented in `marscone_mvp/tabs/graphs_tab.py`.
+
+This tab provides exploratory plots for one dataset. It reloads analyzer summary
+CSV files and visualizes them in several ways.
+
+#### Shared idea
+
+Most graph subtabs offer:
+
+- `Use manual fix`
+- `Refresh`
+- a source label pointing to the current analyzer CSV
+
+#### Subtabs
+
+- `Cone trends`: trend plots of core metrics over cone ID.
+- `Correlation`: metric relationship analysis using correlation matrices.
+- `Scatter`: single-metric scatter views.
+- `Histogram`: one-metric distributions.
+- `2D Distribution`: bivariate density-style exploration.
+- `Boxplot`: grouped distribution summaries.
+- `Custom multi`: multi-panel scatter combinations.
+
+#### Typical source files
+
+- `output/analyzer/cone_summary.csv`
+- `output/analyzer/fix_cone_summary.csv`
+
+#### Metrics commonly used across plots
+
+- height,
+- depth,
+- base major diameter (`WCO`),
+- top major diameter (`WCR`),
+- `H_WCO_ratio`,
+- `WCR_WCO_ratio`,
+- volume.
+
+### Dataset compare
+
+Implemented in `marscone_mvp/tabs/dataset_compare_tab.py` and backed by
+`marscone_mvp/dataset_compare.py`.
+
+This tab compares multiple datasets against each other in a common metric space.
+It is intended for region-to-region, body-to-body, or method-to-method
+comparisons.
+
+#### Main controls
+
+- `Prefer manual-fix metrics`
+- `X` and `Y` metric selectors
+- `Add current dataset`
+- `Refresh`
+- `Open compare folder`
+
+#### Source list
+
+Datasets are entered one per line as:
+
+```text
+label;/path/to/base_or_csv
 ```
 
-### 6.1. Function
-
-Generator is responsible for:
-- reading DEMs, masks and/or points
-- cropping DEMs around each cone candidate
-- generating radial transects for each cone
-- sampling DEM along transects to create elevation profiles
-- writing profile geometries and attributes into the GeoPackage
-
-Internally, it uses:
-- paths.input.masks for mask-based workflows
-- paths.input.points for point-based workflows
-- parameters.mode to decide which approach to use (e.g. "auto")
-
-### 6.2. Inputs
-
-Configured in generator-py/config.json:
-- DEM raster(s) in paths.input.dem
-- cone masks (.shp / .gpkg) in paths.input.masks (for mask-based generation)
-- cone center points in paths.input.points (for point-based generation)
-- output directories for DEM crops and profiles (paths.output.*)
-- GeoPackage database at paths.db
-
-### 6.3. Outputs
-- Cropped DEM tiles in paths.output.dem_cropped
-- Slope rasters in paths.output.dem_slope (if generated)
-- Full profiles in paths.output.profiles_whole
-- Optionally cropped profiles in paths.output.profiles_cropped
-- GeoPackage layers:
-  - transects – transect lines
-  - profiles – profile geometries and sample points
-  - optionally buffers and masks layers if Generator writes them
-
-For file counts and exact paths used in the demo dataset, see [EXPECTED_OUTPUTS.md](EXPECTED_OUTPUTS.md).
-
-### 6.4. Running Generator
-
-From the repository root:
-``` bash
-conda activate marscone
-python generator-py/main.py
-```
-
-Example console output:<br/>
-```bash
-Initializing data structures...
-Running in mode: POINTS
-Cropping DEM rasters using input geometries (points)...
-... clipping DEM by cones: 100%|██████████████| 58/58 [00:01<00:00, 48.19it/s]
-Generating transects from points...
-✔ Saved 464 transects (every 45°) to layer 'transects' in ../data/test_set/db/database.gpkg
-Generating profiles from DEM and transects...
-... generating profiles: 100%|██████████████| 464/464 [00:02<00:00, 182.17it/s]
-✔ Saved 139085 profile points to layer 'profiles'
-✔ Exported profiles as individual CSV files to ../data/test_set/output/generator/profiles/whole
-```
-
-## 7. Module 2 – Finder
-
-```bash
-finder-py/main.py
-```
-
-### 7.1. Function
-
-Finder reads profile points from the GeoPackage and:
-- splits each transect into two sides (W/E or N/S)
-- detects top points using local peaks and elevation drop analysis
-- detects bottom points using an adaptive slope-based algorithm
-- assigns a center (C) point to each transect
-- applies simple shape classification (using classification.shape_threshold)
-- writes results to GeoPackage and CSV
-
-### 7.2. Inputs
-
-Configured in finder-py/config.json:
-- paths.base – same dataset root
-- paths.db – GeoPackage with at least the profiles layer filled by Generator
-- db_layers.profiles – name of the profile layer
-- db_layers.points – name of the output point layer for detections
-
-Finder expects:
-- profile vertices in the profiles layer of db/database.gpkg, with fields like:
-- transect_id, cone_id, distance, elevation, slope, x_geo, y_geo, orientation
-
-### 7.3. Outputs
-- Point layer in db/database.gpkg under db_layers.points (e.g. points), containing:
-    - type (e.g. W_bottom, E_top, C)
-    - transect_id, cone_id
-    - coordinates and elevations
-    - status flags (accepted/refined/etc., depending on implementation)
-- CSV file at paths.output.results_csv (default output/finder/finder_method.csv)
-
-For output examples and structure, see [EXPECTED_OUTPUTS.md](EXPECTED_OUTPUTS.md).
-
-### 7.4. Running Finder
-
-From the repository root:
-``` bash
-conda activate marscone
-python finder-py/main.py
-```
-
-Example console output:<br/>
-```bash
-Detecting base and top:  75%|█████████████▌       | 350/464 [00:01<00:00, 350.17it/s]
-[DEBUG] Suspicious top @ 162.0 m (elev -2704.95) — transect 53_315deg. Criteria: close=True, flat=True, rising=False. Skipping.
-Detecting base and top:  91%|██████████████████▎  | 422/464 [00:01<00:00, 349.71it/s]
-[DEBUG] Suspicious top @ 174.0 m (elev -2705.34) — transect 8_0deg. Criteria: close=True, flat=True, rising=False. Skipping.
-[DEBUG] Suspicious top @ 126.0 m (elev -2705.34) — transect 8_180deg. Criteria: close=True, flat=True, rising=False. Skipping.
-Detecting base and top: 100%|█████████████████████| 464/464 [00:01<00:00, 342.48it/s]
-✔ Saved 2320 points to GPKG layer 'points' and CSV '../data/test_set/output/finder/finder_method.csv'
-You can now inspect profile-level detections in QGIS by opening db/database.gpkg and loading the profiles and points layers.
-```
-
-The above code contains fragments marked [DEBUG], e.g.
-*[DEBUG] Suspicious top @ 162.0 m (elev -2704.95) — transect 53_315deg. Criteria: close=True, flat=True, rising=False. Skipping.*
-In this case, it means that for transect ID 53 for angle 315 deg, an exception was applied because no ideal point was found. 
-
-The status of all points is visible in the csv output file (finder_method.csv) in column `status`.
-
-### Status flag available in the Finder module
-
-During the Finder step, MarsCONE detects three characteristic points along each radial transect:
-- **bottom** – approximate base of the cone flank,
-- **top** – approximate ridge / crater rim,
-- **center** – reference point near the cone interior.
-
-For each detected point, the algorithm stores a `status` flag.  
-This flag describes **which branch of the detection logic produced the final point** and is intended for Quality Contol, debugging and method comparison (e.g. when inspecting problematic cones).
-
-In general, the workflow is:
-
-1. Try the **main adaptive method** (slope-based and distance-based logic).
-2. Optionally **refine** the position around local maxima/minima.
-3. If this fails or is ambiguous, fall back to a series of **hierarchical fallbacks**.
-4. If no valid candidate can be found, the algorithm may keep the original reference point (e.g. the top) and mark the status as a fallback.
-
-**Smoothing parameters (default settings):**
-- **Savitzky–Golay filter** for profile smoothing uses a window size of **17** samples and a polynomial degree of **3** (see `finder-py/finder/smooth.py`).
-- **Adaptive moving-window mean** used during bottom detection applies a rolling mean with window size
-  `min(5, max(1, len(segment) // 5))` before computing slope (see `detect_bottom_adaptive` in `finder-py/main.py`).
-
-For background on parameter choices and quality checks, see [QUALITY_IMPROVEMENTS.md](QUALITY_IMPROVEMENTS.md).
-
-#### How the adaptive slope-based method works in Finder
-
-- **Top detection (`detect_top_by_drop`)**
-  - The algorithm analyses the elevation profile between the detected bottom and the geometric centre.
-  - It uses `scipy.signal.find_peaks` to locate local maxima that:
-    - are high enough relative to the segment (`height` threshold),
-    - have sufficient *prominence* (stand out from the surroundings),
-    - are wide enough (minimum peak width).
-  - Among all valid peaks, the highest one is selected as the **top** and marked with `status = "accepted"`.
-  - If no such peak is found, the method falls back to simpler rules
-    (e.g. highest point in the segment or in the whole half-profile), with corresponding
-    `fallback_*` status codes.
-
-- **Bottom detection (`detect_bottom_adaptive`)**
-  - Starting from the detected top, the algorithm looks **outwards** along the profile (away from the cone centre).
-  - It smooths the elevation values and computes the **slope** (gradient of elevation with respect to distance).
-  - It searches for a zone where:
-    - the slope is strongly negative (`slope < -0.05`), i.e. a significant downhill section,
-    - and the elevation drop from the top exceeds a minimum threshold (e.g. 0.5 m).
-  - From this “drop start”, it follows the profile until:
-    - the slope stabilises (near zero) or changes sign, or
-    - the slope pattern indicates that the terrain starts rising again.
-  - Within this segment it picks the **lowest point** as the bottom candidate.
-  - This candidate is accepted (`status = "accepted"`) only if:
-    - it is far enough from the top horizontally (at least 10% of the top–centre distance), and
-    - it is low enough vertically (at least 5% of the total elevation range of the profile).
-  - If these conditions are not satisfied, the method activates a hierarchy of fallbacks
-    (`extended_search_lowest`, `fallback_drop_start`, `fallback_segment_lowest`, etc.),
-    each of which is explicitly recorded in the `status` column.
-
-In practice, this means that:
-- **“accepted”** points are found by the full slope- and distance-based logic and represent
-  the most reliable bottoms and tops,
-- **`fallback_*`** statuses indicate profiles where the ideal geometric criteria could not be met, and a more permissive rule had to be used instead.
-
-The user may experiment with changing the parameter values in the finder-py/main.py file to better match them to the analysed terrain and cone type.
-
-#### Flag status code summary
-
-| Status                      | Type       | Meaning (short)                                                                 | Typical interpretation / when it occurs                                           |
-|-----------------------------|-----------|----------------------------------------------------------------------------------|-----------------------------------------------------------------------------------|
-| `accepted`                  | main       | Main adaptive method found a valid bottom that passes all distance checks.      | **Best case** for bottom detection. Use as the primary, high-confidence solution. |
-| `refined`                   | refinement | Top refined to a nearby local maximum around the regression-based estimate.     | Top detected robustly and then adjusted to the nearest clear summit candidate.    |
-| `refined_alt`               | refinement | Alternative refinement of the top using an additional local maximum criterion.  | Used when the primary refinement is ambiguous; still a **good-quality** top.      |
-| `extended_search_lowest`    | fallback   | Bottom chosen as the **lowest point** found in an extended search window.       | Main window did not produce a valid bottom; search extended farther from the top. |
-| `fallback_drop_start`       | fallback   | Bottom at the **first significant drop** below the top along the flank.         | Used when a clear minimum is missing, but a strong downward trend is present.     |
-| `fallback_lowest`           | fallback   | Bottom as the **lowest point** between the top and the outer boundary.          | Direct “take the lowest point” fallback within the main segment.                  |
-| `fallback_segment_lowest`   | fallback   | Bottom as the lowest point in the **entire segment** when other checks fail.    | Last-resort bottom; use with care, may be influenced by local noise/outliers.     |
-| `fallback_highest_in_segment` | fallback | Top as the **highest point** within the analysed summit segment.                | Used when prominence/prominence-based criteria are inconclusive.                  |
-| `fallback_overall_highest`  | fallback   | Top as the **highest point on the whole side** in the search direction.         | Very robust, but may be more sensitive to DEM artefacts or external peaks.        |
-| `fallback_segment_empty`    | fallback   | Top chosen from a global maximum because the local segment is too short/empty.  | Geometry or masking left too few points; top is still usable but less constrained.|
-| `fallback_no_top`           | fallback   | No point above the slope threshold; top reconstructed using simple heuristics.  | Indicates profiles with very weak relief or noisy slopes.                         |
-| `fallback_side_start`       | fallback   | Top placed near the **edge of the segment** (start of the side).                | Used when no clear summit is found near the centre, but elevation decreases away. |
-
-**Practical use:**
-
-- For most quantitative analyses, points with `status` in `{"accepted", "refined", "refined_alt"}` can be treated as **high-quality detections**.
-- Fallback statuses are still useful, but they:
-  - often indicate **less ideal geometry**, or  
-  - mark profiles where the algorithm had to relax one or more assumptions.
-- When validating the method or inspecting outliers, it is recommended to:
-  - filter or flag profiles dominated by harsh fallbacks such as  
-    `fallback_segment_lowest`, `fallback_overall_highest`, `fallback_segment_empty`,  
-  - and visually check a sample of transects for each status category.
-
-**Where to find status:**
-The status for each point is available in the `status` column in the finder_methods csv file, as well as in the attribute table in the gpkg files. 
-
-
-## 8. Module 3 – Analyzer
-
-```bash
-analyzer-py/main.py
-```
-
-### 8.1. Function
-
-Analyzer aggregates Finder detections and profile data into cone-scale statistics and geometry:
-- Base/crater widths/height/dept/volume/slopes and base/crater ratio, base/height ratio.  
-- crater center locations:
-    - from top points only
-    - optionally hybrid centers combining top-based center (70%) with expert input points (30%)
-
-### 8.2. Inputs
-
-Configured in analyzer-py/config.json:
-- paths.base – same dataset root
-- paths.input.profiles – profile CSVs from Generator (default output/generator/profiles/whole)
-- paths.input.points – folder with Finder’s CSV (default output/finder)
-- Analyzer expects a file named finder_method.csv inside this folder
-- paths.input.centers – optional expert center file folder (*.shp / *.gpkg)
-- paths.output.csv – main Analyzer results CSV (default output/analyzer/results.csv)
-- paths.output.shapes – folder for vector outputs (buffers, centers, etc.)
-- paths.db – GeoPackage database (db/database.gpkg)
-- csv.sep – CSV separator (default ";")
-- shape.crs – CRS string (same as Generator)
-
-For a full list of Analyzer outputs and formats, see [EXPECTED_OUTPUTS.md](EXPECTED_OUTPUTS.md).
-
-### 8.3. Per-transect metrics
-
-Analyzer typically:
-1.	Joins profile information with Finder points by transect_id and cone_id.
-2.	For each transect, identifies:
-    - all bottom points (types containing "bottom")
-    - all top points (types containing "top")
-    - center point (type == "C")
-3.	Computes metrics such as:
-    - height = mean(top_elev) - mean(bottom_elev)
-    - bottom_width and top_width (distance between extremal points of each type)
-    - center_elev, center_x, center_y
-    - center_to_top_diff and others
-    - simple shape class (flat, convex, concave) using shape_threshold
-
-These metrics are then written to the file defined by paths.output.csv (or an additional per-transect CSV, depending on the code version).
-
-### 8.4. Per-cone metrics
-
-For each cone_id, Analyzer aggregates per-transect metrics to compute:
-- mean height, bottom_width, top_width
-- mean top_elev, bottom_elev, center_elev
-- descriptors such as center_to_top_diff
-- H/W ratios and other derived indices
-
-Using all bottom and top points for the cone, it can compute:
-- base ellipse (from bottom points) – major/minor diameters, area, orientation
-- crater ellipse (from top points) – crater width and orientation
-- approximate volume based on cone geometry
-- average side slopes
-
-Results are appended/merged into the main CSV defined by paths.output.csv.
-
-### 8.5. Cone footprints and centers
-
-Based on buffer_distance and aggregated metrics, Analyzer:
-- creates buffers around cone centers and writes them as vector layers to paths.output.shapes
-- computes crater centers from top points and exports them as GPKG/GeoJSON
-- if an expert center file is present in paths.input.centers, it can compute hybrid centers:
-    - merges top-based center with expert point 
-    - writes a separate layer with hybrid centers
-
-If export_geojson is true, additional GeoJSON files are written for quick visualization.
-
-### 8.6. Running Analyzer
-
-From the repository root:
-``` bash
-conda activate marscone
-python analyzer-py/main.py
-```
-
-Example console output:
-```bash
-✔ Reading profile points and detected features
-Analyzing profiles: 100%|████████████████████████| 464/464 [00:01<00:00, 299.42it/s]
-✔ Exported 464 measurements to ../data/test_set/output/analyzer/results.csv
-✔ Calculating advanced morphometric parameters for each cone...
-Analyzing cone geometry: 100%|█████████████████████| 58/58 [00:00<00:00, 726.16it/s]
-✔ Exported aggregated results to ../data/test_set/output/analyzer/cone_summary.csv
-✔ Generating GeoJSON buffers for cones by shape
-✔ Saved: ../data/test_set/output/analyzer/shapes/concave_cones.gpkg
-✔ Computing crater centers using top points and least squares
-✔ Saved center points to ../data/test_set/output/analyzer/shapes/centers.gpkg
-✔ Reading expert crater center points from input/centers
-✔ Saved input center points to ../data/test_set/output/analyzer/shapes/centers_input.gpkg
-✔ Computing hybrid crater centers (top + expert point)
-✔ Saved hybrid center points to ../data/test_set/output/analyzer/shapes/centers_hybrid.gpkg
-✔ Updated cone_summary.csv with hybrid coordinates
-✔ Exporting unified GeoPackage with cleaned points and fitted ellipses
-✔ Saved per-transect bottom points to layer 'points_bottom_axis'
-✔ Saved unified GeoPackage to ../data/test_set/output/analyzer/marscone.gpkg
-```
-If an expert centers file is found in paths.input.centers, you may additionally see logs about hybrid center computation.
-
-## 9. Example outputs
-
-For a complete list of outputs, file counts, and formats, see [EXPECTED_OUTPUTS.md](EXPECTED_OUTPUTS.md).
-### 9.1. GIS view of MarsCONE results
-
-After running all three modules (Generator → Finder → Analyzer), the results can be inspected directly in a GIS (e.g. QGIS, ArcGIS) using the GeoPackage specified in the configs (typically `db/database.gpkg`) and the output layers created by Analyzer (`output/analyzer/marscone.gpkg`).
-
-A possible view of the final outputs looks like this:
-
-![MarsCONE cone system in QGIS](https://c5studio.pl/marscone/marscone-qgis.webp)
-
-Key layers:
-- **`database — transects`** – radial transects generated by the Generator  
-- **`database — profiles`** – profile geometries / vertices along each transect  
-- **`database — points`** – bottom / top / center points detected by the Finder on each transects
-- **`database — temp_cones_buffer`** – buffer size defined in the Generator
-
-- **`marscone — points_top`, `marscone — points_bottom`** – cleaned sets of top/bottom points 
-- **`centers-hybrid`** – hybrid centre point (weighted average of expert and automatically determined points) – file available in `output/analyser/shapes/centers_hybrid.gpkg` 
-
-*optionally*
-- **`marscone — points_bottom_near_and_far`** - all detected bottom points (near and far) - the best solution is to display the layer according to the unique value with the type () parameter. Most often, E_bottom and N_bottom are nearest points, and S_bottom and W_bottom are farther points.
-- **`centers-input`** – centre point (automatically detected points - lowest points between top) – file available in `output/analyser/shapes/centers_input.gpkg` 
-- **`centers`** – default points created in input folder – file available in `output/analyser/shapes/centers.gpkg` 
-- **`marscone — ellipse_base`** - fitted bottom ellipses created by the Analyzer
-- **`marscone — ellipse_top`** - fitted top ellipses created by the Analyzer
-
-
-These layers allow you to verify the quality of automatic detection and visually inspect cone geometry.
-
----
-
-#### 9.1.1. How to reproduce this figure in QGIS
-
-To recreate the QGIS view shown above:
-
-1. **Open the GeoPackage**
-   - In QGIS: *Layer → Add Layer → Add Vector Layer…*  
-   - Select `db/database.gpkg` and load all layers, or at least:
-     - `transects`
-   - Select `output/analyzer/marscone.gpkg` and load all layers
-   - Select `output/analyser/shapes/centers_hybrid.gpkg` and load layers
-
-2. **Add the DEM**
-   - Add the DEM used in MarsCONE (e.g. `DTEEC_043987_1825_035521_1825_A01.tif`) as a raster layer.
-   - Optional: apply a hillshade or relief style to enhance topography.
-
-3. **Set layer order and preferred style**
-
-
-### 9.2. `cone_summary.csv` – cone-scale metrics
-
-The main numeric summary produced by the Analyzer is stored in `output/analyzer/cone_summary.csv`.  
-Each row corresponds to one cone and contains the following columns:
-
-- **`cone_id`**  
-  Unique identifier of the cone.
-
-- **`height`** [m]  
-  Cone height: difference between mean top elevation and mean bottom elevation  
-  (`height = top_elev − bottom_elev`).
-
-- **`bottom_width`** [m]  
-  Effective base diameter derived from the most distal bottom points with respect to the cone centre  
-  (not necessarily identical to `base_major_diameter`, which comes from ellipse fitting).
-
-- **`top_elev`** [m]  
-  Mean elevation of all detected top points for the cone.
-
-- **`bottom_elev`** [m]  
-  Mean elevation of all detected bottom points for the cone.
-
-- **`center_elev`** [m]  
-  Mean elevation of all detected center points (`C`) along transects.
-
-- **`center_to_top_diff`** [m]  
-  Difference between mean top elevation and mean center elevation  
-  (`center_to_top_diff = top_elev − center_elev`).
-
-- **`center_x`**, **`center_y`** [map units]  
-  Mean planimetric coordinates of center points (`C`) for the cone, in the project CRS (same CRS as defined in the config, e.g. Mars equirectangular).
-
-- **`shape`**  
-  Simple shape class of the cone, based on transect-level metrics and `shape_threshold`, e.g.:  
-  `concave`, `convex`, `flat`.
-
-- **`base_area`** [m²]  
-  Area of the fitted base ellipse (using bottom points).
-
-- **`base_major_diameter`** [m]  
-  Length of the major axis of the fitted base ellipse.
-
-- **`base_minor_diameter`** [m]  
-  Length of the minor axis of the fitted base ellipse.
-
-- **`base_center_x`**, **`base_center_y`** [map units]  
-  Center coordinates of the fitted base ellipse.
-
-- **`base_angle_deg`** [°]  
-  Orientation of the major axis of the base ellipse, measured in degrees (azimuth in the CRS coordinate system).
-
-- **`top_major_diameter`** [m]  
-  Length of the major axis of the fitted crater (top) ellipse.
-
-- **`top_minor_diameter`** [m]  
-  Length of the minor axis of the fitted crater (top) ellipse.
-
-- **`top_center_x`**, **`top_center_y`** [map units]  
-  Center coordinates of the fitted crater (top) ellipse.
-
-- **`top_angle_deg`** [°]  
-  Orientation of the major axis of the top ellipse (crater), in degrees.
-
-- **`volume`** [m³]  
-  Approximate cone volume estimated from the base geometry and height  
-  (frustum-like approximation using base and crater radii).
-
-- **`base_ellipticity`** [-]  
-  Dimensionless ellipticity of the base ellipse, typically defined as  
-  `1 − (base_minor_diameter / base_major_diameter)`;  
-  values close to 0 indicate nearly circular bases, higher values indicate stronger elongation.
-
-- **`elongation_azimuth`** [°]  
-  Azimuth of base elongation (orientation of the long axis of the base), derived from the ellipse fit.  
-  For symmetric cones this will be similar to `base_angle_deg`.
-
-- **`avg_slope_deg`** [°]  
-  Mean side slope angle of the cone, averaged over all transects (degrees).
-
-- **`H_WCO_ratio`** [-]  
-  Height-to-base ratio: `H / WCO`, where `H` is `height` and `WCO` is the base width  
-  (typically `base_major_diameter`). Indicates relative steepness of the cone.
-
-- **`WCR_WCO_ratio`** [-]  
-  Crater-to-base width ratio: `WCR / WCO`, where `WCR` is crater width  
-  (derived from the top ellipse) and `WCO` is base width. Values near 0 indicate small craters  
-  relative to the cone base, values near 1 indicate very wide craters.
-
-- **`center_lowest_elev`** [m]  
-  Lowest elevation among all center points (`C`) for the cone, representing the  
-  minimum crater-floor level detected along transects.
-
-- **`depth`** [m]  
-  Crater depth with respect to the highest top elevation:  
-  `depth = top_elev − center_lowest_elev`.
-
-- **`hybrid_x`**, **`hybrid_y`** [map units]  
-  Hybrid crater center coordinates, combining the center estimated from top points  
-  with the expert input point (if provided in `input/points`), using a weighted average (70% calculated center and 30% input center).  
-  If no expert file is available, these may be identical to the top-based center or left empty,  
-  depending on the configuration.
-
-
-This table can be directly used for statistical analysis, plotting (e.g. height vs. base diameter), or comparison with manually measured cone morphometry.
-
-## 10. Cross-section notebook (`cross-section.ipynb`)
-In addition to the CLI workflow, MarsCONE provides an optional Jupyter notebook
-(`cross-section.ipynb`) that can be used to generate **publication-ready
-files** for individual cones. 
-
-![MarsCONE cone system in QGIS](https://c5studio.pl/marscone/cone18_axis0.svg)
-
-The notebook:
-
-1. Reads the DEM-based profiles from `output/generator/profiles/whole/`.
-2. Reads detected points from `output/finder/finder_method.csv`.
-3. Reads cone-scale metrics from `output/analyzer/cone_summary.csv`.
-4. Lets you select:
-   - a particular `cone_id`, and  
-   - one **axis** (pair of opposite transects), e.g. `90°/270°` or `0°/180°`.
-5. Builds a single **composite cross-section** along this axis, merging:
-   - left and right sides of the cone,
-   - near and far `bottom` points,
-   - `top` points on both sides,
-   - the `center` point.
-
-
-#### Parameters shown in the cross-section plots
-
-For each selected cone and axis, the notebook computes and annotates:
-
-- **`Wco`** – **basal width** along the axis  
-  Horizontal distance between the two *near* bottom points on opposite sides of the cone.
-- **`Wcr`** – **crater width** along the axis  
-  Horizontal distance between the two top points on opposite sides of the cone.
-
-- **`H_left`**, **`H_right`** – **cone heights** for the left and right side  
-  Vertical distance between the top and the *near* bottom point on each side, e.g.  
-  `H_left = z_top_left − z_bottom_left_near`.
-
-- **`D_left`**, **`D_right`** – **crater depths** along each side  
-  Vertical distance between the top and the crater centre, e.g.  
-  `D_left = z_top_left − z_center`,  
-  where `z_center` is the elevation of the centre point on that axis.
-
-![MarsCONE cone system in QGIS](https://c5studio.pl/marscone/marscone-calculation.png)
-
-
-## 11. Troubleshooting
-- GDAL / PROJ errors<br/>
-        Make sure you are using the marscone Conda environment created from marscone_env.yml.<br/>
-        On some systems you may need to set PROJ_LIB and GDAL_DATA manually.
-  See [INSTALL.md](INSTALL.md) for OS-specific steps.
-- `ModuleNotFoundError: No module named 'osgeo'` after `pip install -r requirements.txt`<br/>
-  `requirements.txt` does not install OS-level GDAL bindings by itself.<br/>
-  Use the Conda environment from `marscone_env.yml` or follow the pip prerequisites in [INSTALL.md](INSTALL.md).
-- Generator produces no profiles<br/>
-	    Check generator-py/config.json paths (paths.base, paths.input.*)<br/>
-	    Make sure masks or points exist and the CRS matches the DEM (crs entry)
-- Finder finds no points<br/>
-	    Ensure that Generator populated the profiles layer in db/database.gpkg<br/>
-	    Verify that db_layers.profiles in Finder config matches the actual layer name
-- Analyzer cannot find Finder results<br/>
-	    Confirm that paths.input.points in Analyzer points to the folder with finder_method.csv<br/>
-	    Check that csv.sep matches the separator used by Finder (usually ";")
-- No hybrid centers are produced<br/>
-	    Ensure that a *.shp or *.gpkg with expert centers is placed in paths.input.centers<br/>
-	    Ensure the file contains a cone_id field compatible with the IDs used in the pipeline
+You can point either to a dataset base directory or directly to a summary CSV.
+If a base directory is used, the tab resolves either `cone_summary.csv` or
+`fix_cone_summary.csv` automatically.
 
+#### Compare subtabs
 
+- `Scatter`: colored per-dataset point cloud with centroids.
+- `Heatmap`: pairwise centroid distance matrix in standardized space.
+- `Embedding`: PCA or UMAP-style low-dimensional embedding, depending on
+	availability and fallback behavior.
+- `Similarity report`: ranked pairwise similarity table.
+- `Stats compare`: per-dataset summary statistics and deltas vs reference.
+- `Export + settings`: color, marker, size, and export-path controls.
 
+#### Styling and analysis options
+
+- custom per-dataset colors,
+- scatter and embedding marker selection,
+- scatter and embedding point size,
+- `Show enclosing polygons (convex hull)`,
+- hull style and alpha,
+- `Log X` and `Log Y`,
+- `Show reference rows` in the stats table,
+- dataset-level or cone-level embedding.
+
+#### Exported outputs
+
+Written to `output/analyzer/dataset_compare/`:
+
+- scatter PNG,
+- heatmap PNG,
+- embedding PNG,
+- points CSV,
+- centroid distance CSV,
+- similarity report CSV,
+- stats compare CSV,
+- embedding CSV,
+- loadings CSV.
+
+## Backend Module Map
+
+### Entry and application bootstrap
+
+- `main.py`: application entry point.
+- `marscone_mvp/app.py`: Qt application startup and window bootstrap.
+- `marscone_mvp/main_window.py`: main window assembly and shared constants.
+
+### State and configuration
+
+- `marscone_mvp/app_state.py`: default state, state loading, and persistence to
+	`app_state.json`.
+- `marscone_mvp/config_templates.py`: generates runtime configs for generator,
+	finder, and analyzer based on the current GUI state.
+- `marscone_mvp/crs.py`: CRS detection and manual CRS resolution helpers.
+
+### Runtime pipeline layer
+
+- `marscone_mvp/pipeline.py`: copies source modules into `.runtime/`, writes
+	configs, launches processes, and emits logs/status back to the GUI.
+
+### Cross-section tools
+
+- `marscone_mvp/cross_section.py`: core logic for generating cross-section
+	figures and metrics.
+- `marscone_mvp/cross_section_cli.py`: command-line wrapper used by the GUI.
+
+### DEM overlay tools
+
+- `marscone_mvp/dem_overlay.py`: hillshade generation, DEM plotting, overlay
+	drawing, and manual-fix integration.
+- `marscone_mvp/dem_overlay_cli.py`: command-line wrapper used by the GUI.
+
+### Complex and comparative analysis
+
+- `marscone_mvp/complex_cones.py`: schema handling, member parsing, aggregated
+	outputs, topology derivation, and merged DEM helpers for complex systems.
+- `marscone_mvp/dataset_compare.py`: metric extraction, dataset feature matrix
+	construction, similarity ranking, and embedding helpers.
+
+### Shared UI data handling
+
+- `marscone_mvp/table_model.py`: Qt table model used across results tables.
+- `marscone_mvp/tabs/shared_helpers.py`: helper logic reused by multiple tabs.
+
+## Config And State Details
+
+The persisted UI state is stored in `app_state.json` in the MVP root.
+
+State includes:
+
+- project paths,
+- generator settings,
+- finder settings,
+- analyzer settings,
+- QA thresholds,
+- cross-section settings,
+- DEM overlay settings,
+- dataset compare settings.
+
+The default state assumes:
+
+- `dev_root = ../dev`
+- a default dataset at `../dev/data/test_set`
+- a Mars-style manual CRS value already filled in
+- `PROJ_IGNORE_CELESTIAL_BODY` enabled by default
+
+## Output Conventions
+
+The MVP relies on a few output conventions across modules.
+
+### Generator outputs
+
+- cropped DEM rasters,
+- slope rasters,
+- whole and cropped transect profiles,
+- GeoPackage layers in `db/database.gpkg`.
+
+### Finder outputs
+
+- `output/finder/finder_method.csv`
+
+### Analyzer outputs
+
+- `output/analyzer/results.csv`
+- `output/analyzer/cone_summary.csv`
+- `output/analyzer/fix_cone_summary.csv` when manual fix is used
+- shape and summary layers in `output/analyzer/shapes/`
+
+### QA and visualization outputs
+
+- `output/figures/cross_sections/*`
+- `output/figures/cross_sections/manual_point_overrides.csv`
+- `output/figures/dem_overlay/*`
+- `output/figures/complex_cones/*`
+- `output/analyzer/dataset_compare/*`
+- `output/mvp_complex/*`
+
+## Important Caveats
+
+- The MVP is a desktop orchestration and QA layer, not a replacement for the
+	underlying module code in `../dev`.
+- The GUI depends on the folder conventions described above. If a dataset uses
+	different names or locations, you must point the controls to the correct
+	paths manually.
+- `Manual Fix` changes only become visible in downstream metrics after rerunning
+	`Analyzer` with manual fix enabled.
+- `Cross-section`, `DEM overlay`, `Graphs`, `Complex Cones`, and `Dataset compare`
+	all assume that the earlier pipeline stages have already produced the relevant
+	CSV, GPKG, and raster outputs.
+
+
+## File Overview
+
+- `main.py`: start the desktop application.
+- `marscone_mvp/app.py`: Qt bootstrap.
+- `marscone_mvp/main_window.py`: tab composition and shared window state.
+- `marscone_mvp/pipeline.py`: isolated runtime execution.
+- `marscone_mvp/config_templates.py`: generated configs for runtime sessions.
+- `marscone_mvp/app_state.py`: persistent settings.
+- `marscone_mvp/crs.py`: CRS resolution.
+- `marscone_mvp/cross_section.py`: cross-section generation logic.
+- `marscone_mvp/cross_section_cli.py`: CLI wrapper for cross-sections.
+- `marscone_mvp/dem_overlay.py`: DEM overlay logic.
+- `marscone_mvp/dem_overlay_cli.py`: CLI wrapper for DEM overlays.
+- `marscone_mvp/complex_cones.py`: complex-cone analysis.
+- `marscone_mvp/dataset_compare.py`: multi-dataset comparison utilities.
+- `marscone_mvp/table_model.py`: shared Qt table model.
+- `marscone_mvp/tabs/*.py`: all tab-specific UI logic.
+
+## Summary
+
+The MVP now covers the full working loop around MarsCONE processing: run the
+pipeline, inspect outputs, correct problematic picks, validate results visually,
+aggregate complex systems, and compare datasets. If you use the directory and
+output conventions described here, each tab should map directly to one stage of
+that workflow without requiring manual interpretation of the source code.
