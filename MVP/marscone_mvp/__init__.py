@@ -1,0 +1,1 @@
+"""MarsCONE desktop MVP package."""

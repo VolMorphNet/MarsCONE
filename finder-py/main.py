@@ -15,7 +15,7 @@ from os.path import dirname, join
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-from scipy.signal import find_peaks
+from scipy.signal import find_peaks, savgol_filter
 from shapely.geometry import Point
 from tqdm import tqdm
 
@@ -38,6 +38,18 @@ def main():  # pylint: disable=too-many-locals,too-many-branches,too-many-statem
     profiles_layer = config["db_layers"]["profiles"]
     points_layer = config["db_layers"]["points"]
     csv_output = join(base, config["paths"]["output"]["results_csv"])
+    smoothing_cfg = config.get("smoothing", {})
+    smoothing_enabled = bool(smoothing_cfg.get("enabled", False))
+    smoothing_window_m = float(smoothing_cfg.get("window_m", 120.0))
+    smoothing_polyorder = int(smoothing_cfg.get("polyorder", 2))
+    detection_cfg = config.get("detection", {})
+    bottom_edge_guard_frac = float(detection_cfg.get("bottom_edge_guard_frac", 0.12))
+
+    print(
+        f"{CYAN}Smoothing: enabled={smoothing_enabled}, "
+        f"window={smoothing_window_m:.1f} m, polyorder={smoothing_polyorder}{RESET}"
+    )
+    print(f"{CYAN}Detection: bottom_edge_guard_frac={bottom_edge_guard_frac:.2f}{RESET}")
 
     os.makedirs(dirname(csv_output), exist_ok=True)
     gdf = gpd.read_file(db_path, layer=profiles_layer)
@@ -46,6 +58,12 @@ def main():  # pylint: disable=too-many-locals,too-many-branches,too-many-statem
 
     for transect_id, group in tqdm(grouped, desc="Detecting base and top"):
         profile = group.sort_values("distance").copy()
+        profile = apply_optional_smoothing(
+            profile,
+            enabled=smoothing_enabled,
+            window_m=smoothing_window_m,
+            polyorder=smoothing_polyorder,
+        )
         cone_id = profile["cone_id"].iloc[0]
         orientation = (
             profile["orientation"].iloc[0] if "orientation" in profile.columns else None
@@ -72,7 +90,10 @@ def main():  # pylint: disable=too-many-locals,too-many-branches,too-many-statem
 
             # Step 2: Bottom detection (requires top_idx)
             if top_idx is not None:
-                bottom = detect_bottom_adaptive(side, top_idx, center_x=center_dist)
+                bottom = detect_bottom_adaptive(
+                    side, top_idx, center_x=center_dist,
+                    edge_guard_frac=bottom_edge_guard_frac,
+                )
             else:
                 # Fallback: use lowest point in first 1/3 of segment or segment start
                 if len(side) > 10:
@@ -117,7 +138,7 @@ def main():  # pylint: disable=too-many-locals,too-many-branches,too-many-statem
                         "transect_id": transect_id,
                         "cone_id": cone_id,
                         "orientation": orientation,
-                        "elevation": point["elevation"],
+                        "elevation": point.get("elevation_raw", point["elevation"]),
                         "slope": point["slope"],
                         "distance": point["distance"],
                         "x_geo": point["x_geo"],
@@ -151,7 +172,7 @@ def main():  # pylint: disable=too-many-locals,too-many-branches,too-many-statem
                 "transect_id": transect_id,
                 "cone_id": cone_id,
                 "orientation": orientation,
-                "elevation": center["elevation"],
+                "elevation": center.get("elevation_raw", center["elevation"]),
                 "slope": center["slope"],
                 "distance": center["distance"],
                 "x_geo": center["x_geo"],
@@ -181,6 +202,71 @@ def infer_direction(profile):
     return "EW" if dx > dy else "NS"
 
 
+def apply_optional_smoothing(
+    profile: pd.DataFrame, enabled: bool, window_m: float, polyorder: int
+) -> pd.DataFrame:
+    """Apply optional Savitzky-Golay smoothing to profile elevation for detection.
+
+    The original elevation is preserved in `elevation_raw` so exported points
+    keep DEM-native values even when detection runs on smoothed signal.
+    """
+    if not enabled:
+        return profile
+
+    if len(profile) < 5:
+        return profile
+
+    out = profile.copy()
+    out["elevation_raw"] = out["elevation"]
+
+    elevation_series = pd.to_numeric(out["elevation"], errors="coerce")
+    if elevation_series.isna().all():
+        return profile
+
+    filled = elevation_series.interpolate(limit_direction="both")
+    if filled.isna().all():
+        return profile
+
+    diffs = np.diff(pd.to_numeric(out["distance"], errors="coerce").to_numpy(dtype=float))
+    diffs = np.abs(diffs[np.isfinite(diffs)])
+    diffs = diffs[diffs > 0]
+    if len(diffs) == 0:
+        return profile
+
+    spacing = float(np.median(diffs))
+    if not np.isfinite(spacing) or spacing <= 0:
+        return profile
+
+    window_samples = int(round(window_m / spacing))
+    min_window = max(3, polyorder + 2)
+    if window_samples < min_window:
+        window_samples = min_window
+    if window_samples % 2 == 0:
+        window_samples += 1
+
+    max_window = len(out) if len(out) % 2 == 1 else len(out) - 1
+    if max_window < 3:
+        return profile
+    window_samples = min(window_samples, max_window)
+
+    poly_eff = min(max(1, polyorder), window_samples - 1)
+    if poly_eff >= window_samples:
+        return profile
+
+    try:
+        smoothed = savgol_filter(
+            filled.to_numpy(dtype=float),
+            window_length=window_samples,
+            polyorder=poly_eff,
+            mode="interp",
+        )
+    except ValueError:
+        return profile
+
+    out["elevation"] = smoothed
+    return out
+
+
 def get_side_prefix(direction, side_index):
     """
     Returns prefix for side of transect based on orientation and side index.
@@ -190,18 +276,68 @@ def get_side_prefix(direction, side_index):
     return "S" if side_index == 0 else "N"
 
 
-def detect_bottom_adaptive(profile, top_idx, center_x):
-    # pylint: disable=too-many-branches,too-many-locals,too-many-statements,too-many-return-statements
+def _search_non_edge_bottom(
+    segment, smoothed_elevation, top_elevation, top_x,
+    min_dist_h, min_dist_v, in_edge_zone, elev_range
+):
+    """Search for the deepest valid bottom candidate outside the edge zone.
+
+    Uses local minima of the smoothed elevation profile (find_peaks on
+    inverted signal).  Returns the best non-edge candidate as a Series
+    with .status == 'accepted_local_min', or None if nothing qualifies.
     """
-    Detects the 'bottom' point (base) of a cone side profile by searching
-    outward from the top point. Looks for a significant drop and then terrain
-    stabilization (low slope) or local minimum.
+    if elev_range <= 0 or len(smoothed_elevation) < 3:
+        return None
+    inv_e = -smoothed_elevation.copy()
+    inv_e = np.where(np.isfinite(inv_e), inv_e, 0.0)
+    min_prominence = max(0.02 * elev_range, 0.1)
+    peaks, _ = find_peaks(inv_e, prominence=min_prominence)
+    best = None
+    best_depth = 0.0
+    for idx in peaks:
+        if idx >= len(segment):
+            continue
+        pt = segment.iloc[idx].copy()
+        if in_edge_zone(float(pt["distance"])):
+            continue
+        depth = top_elevation - float(pt["elevation"])
+        dist_from_top = abs(float(pt["distance"]) - top_x)
+        if depth > min_dist_v and dist_from_top > min_dist_h and depth > best_depth:
+            best = pt
+            best_depth = depth
+    if best is not None:
+        best.status = "accepted_local_min"
+    return best
+
+
+def detect_bottom_adaptive(profile, top_idx, center_x, edge_guard_frac=0.12):
+    # pylint: disable=too-many-branches,too-many-locals,too-many-statements,too-many-return-statements
+    """Detect the bottom (base) of a cone flank, with edge guard and adaptive thresholds.
+
+    Enhanced over the original implementation with:
+    - Adaptive ``min_drop_height``: scales with 2 % of the full profile
+      elevation range instead of a fixed 0.5 m, making it usable across
+      Mars/Earth/submarine terrains with very different relief.
+    - Edge guard: the outer ``edge_guard_frac`` fraction of the outward segment
+      distance span is treated as an *edge zone*.  Candidates inside this zone
+      are accepted only when no valid non-edge alternative exists, and they
+      receive the explicit status ``edge_accepted`` so that downstream quality
+      assessment can flag them.
+    - Non-edge alternative search: when the main slope-knee path or the
+      extended-search path lands in the edge zone, ``_search_non_edge_bottom``
+      is called to find local minima outside the zone.
+
     Args:
-        profile: DataFrame of the side profile.
-        top_idx: Index of the detected top point in the profile.
-        center_x: Distance value of the geometric center.
+        profile: DataFrame of the full transect side.
+        top_idx: Integer position of the detected top in *profile*.
+        center_x: Distance value of the transect geometric centre.
+        edge_guard_frac: Fraction of segment length treated as edge zone
+            (0.0 = disabled, default 0.12).
     Returns:
-        Series: Row corresponding to detected bottom point (with .status).
+        Series with a ``.status`` attribute set to one of:
+        ``accepted``, ``accepted_local_min``, ``edge_accepted``,
+        ``extended_search_lowest``, ``fallback_drop_start``,
+        ``fallback_lowest``, ``fallback_segment_lowest``.
     """
     top_point = profile.iloc[top_idx]
     top_x = top_point["distance"]
@@ -214,6 +350,32 @@ def detect_bottom_adaptive(profile, top_idx, center_x):
         segment = segment.sort_values("distance", ascending=True)
     if segment.empty or len(segment) < 5:
         return top_point
+
+    # --- Adaptive thresholds --------------------------------------------------
+    elev_range = float(profile["elevation"].max() - profile["elevation"].min())
+    elev_range = max(elev_range, 1.0)
+    significant_drop_slope_thresh = -0.05
+    stabilization_slope_thresh = 0.01
+    # Scale min drop to profile relief: 2 % of range, minimum 0.3 m
+    min_drop_height = max(0.3, 0.02 * elev_range)
+    min_dist_from_top_horizontal = 0.1 * abs(top_x - center_x)
+    min_dist_from_top_vertical = 0.05 * elev_range
+
+    # --- Edge guard -----------------------------------------------------------
+    dist_vals = segment["distance"].values.astype(float)
+    seg_dist_min = float(np.nanmin(dist_vals))
+    seg_dist_max = float(np.nanmax(dist_vals))
+    seg_span = seg_dist_max - seg_dist_min
+    guard_width = seg_span * max(0.0, min(0.5, float(edge_guard_frac)))
+    outward_ascending = float(dist_vals[-1]) > float(dist_vals[0])
+    if outward_ascending:
+        edge_threshold = seg_dist_max - guard_width
+        def in_edge_zone(d): return float(d) > edge_threshold  # noqa: E731
+    else:
+        edge_threshold = seg_dist_min + guard_width
+        def in_edge_zone(d): return float(d) < edge_threshold  # noqa: E731
+
+    # --- Smooth + gradient ----------------------------------------------------
     smooth_window = min(5, max(1, len(segment) // 5))
     smoothed_elevation = (
         segment["elevation"]
@@ -223,23 +385,34 @@ def detect_bottom_adaptive(profile, top_idx, center_x):
     )
     distances = segment["distance"].values
     slopes = np.gradient(smoothed_elevation, distances)
-    significant_drop_slope_thresh = -0.05
-    stabilization_slope_thresh = 0.01
-    min_drop_height = 0.5
+
+    # --- Step 1: Find first significant slope drop ----------------------------
     drop_start_idx = -1
     for idx, slope in enumerate(slopes):
         if slope < significant_drop_slope_thresh:
             if (top_elevation - smoothed_elevation[idx]) > min_drop_height:
                 drop_start_idx = idx
                 break
+
     if drop_start_idx == -1:
-        valid_elevations_for_lowest = segment["elevation"].dropna()
-        if not valid_elevations_for_lowest.empty:
-            lowest_point_in_segment = segment.loc[valid_elevations_for_lowest.idxmin()]
-            if lowest_point_in_segment["elevation"] < top_elevation:
-                lowest_point_in_segment.status = "fallback_lowest"
-                return lowest_point_in_segment
+        # No slope drop found – prefer lowest point outside edge zone
+        valid_all = segment["elevation"].dropna()
+        if not valid_all.empty:
+            non_edge_mask = ~segment["distance"].apply(in_edge_zone)
+            non_edge_seg = segment[non_edge_mask]
+            for try_seg in [non_edge_seg, segment]:
+                if try_seg.empty:
+                    continue
+                valid = try_seg["elevation"].dropna()
+                if valid.empty:
+                    continue
+                pt = try_seg.loc[valid.idxmin()].copy()
+                if float(pt["elevation"]) < top_elevation:
+                    pt.status = "fallback_lowest"
+                    return pt
         return top_point
+
+    # --- Step 2: Find stabilisation after drop start --------------------------
     bottom_candidate_idx = drop_start_idx
     for i in range(drop_start_idx, len(slopes)):
         if abs(slopes[i]) < stabilization_slope_thresh or slopes[i] > 0:
@@ -253,54 +426,81 @@ def detect_bottom_adaptive(profile, top_idx, center_x):
         ):
             bottom_candidate_idx = i
             break
+
     search_segment = segment.iloc[drop_start_idx : bottom_candidate_idx + 1]
     if search_segment.empty:
-        return segment.iloc[drop_start_idx] if drop_start_idx != -1 else top_point
+        search_segment = segment.iloc[drop_start_idx : drop_start_idx + 1]
     valid_elevations_for_min = search_segment["elevation"].dropna()
     if valid_elevations_for_min.empty:
         return top_point
-    min_elev_point = search_segment.loc[valid_elevations_for_min.idxmin()]
-    min_dist_from_top_horizontal = 0.1 * abs(top_x - center_x)
-    min_dist_from_top_vertical = 0.05 * (
-        profile["elevation"].max() - profile["elevation"].min()
-    )
+    min_elev_point = search_segment.loc[valid_elevations_for_min.idxmin()].copy()
+
     is_far_enough_horizontally = (
-        abs(min_elev_point["distance"] - top_x) > min_dist_from_top_horizontal
+        abs(float(min_elev_point["distance"]) - top_x) > min_dist_from_top_horizontal
     )
     is_low_enough_vertically = (
-        top_elevation - min_elev_point["elevation"]
+        top_elevation - float(min_elev_point["elevation"])
     ) > min_dist_from_top_vertical
+
     if is_far_enough_horizontally and is_low_enough_vertically:
-        min_elev_point.status = "accepted"
+        if not in_edge_zone(min_elev_point["distance"]):
+            min_elev_point.status = "accepted"
+            return min_elev_point
+        # Main candidate is in edge zone – look for non-edge local-minima alt
+        alt = _search_non_edge_bottom(
+            segment, smoothed_elevation, top_elevation, top_x,
+            min_dist_from_top_horizontal, min_dist_from_top_vertical,
+            in_edge_zone, elev_range,
+        )
+        if alt is not None:
+            return alt
+        min_elev_point.status = "edge_accepted"
         return min_elev_point
 
+    # --- Step 3: Extended search in remaining segment -------------------------
     remaining_segment = segment.iloc[bottom_candidate_idx + 1 :]
     if not remaining_segment.empty:
-        valid_elevations_remaining = remaining_segment["elevation"].dropna()
-        if (
-            not valid_elevations_remaining.empty
-            and valid_elevations_remaining.min() < min_elev_point["elevation"]
-        ):
-            deeper_bottom = remaining_segment.loc[valid_elevations_remaining.idxmin()]
+        valid_remaining = remaining_segment["elevation"].dropna()
+        if not valid_remaining.empty:
+            deeper_bottom = remaining_segment.loc[valid_remaining.idxmin()].copy()
             if (
-                top_elevation - deeper_bottom["elevation"]
+                top_elevation - float(deeper_bottom["elevation"])
             ) > min_dist_from_top_vertical:
+                if not in_edge_zone(deeper_bottom["distance"]):
+                    deeper_bottom.status = "extended_search_lowest"
+                    return deeper_bottom
+                # Extended candidate is in edge zone – try non-edge local min
+                alt = _search_non_edge_bottom(
+                    segment, smoothed_elevation, top_elevation, top_x,
+                    min_dist_from_top_horizontal, min_dist_from_top_vertical,
+                    in_edge_zone, elev_range,
+                )
+                if alt is not None:
+                    return alt
                 deeper_bottom.status = "extended_search_lowest"
                 return deeper_bottom
-    potential_bottom_from_drop_start = segment.iloc[drop_start_idx]
+
+    # --- Step 4: Fallback from drop start point --------------------------------
+    potential_bottom_from_drop_start = segment.iloc[drop_start_idx].copy()
     if (
-        top_elevation - potential_bottom_from_drop_start["elevation"]
+        top_elevation - float(potential_bottom_from_drop_start["elevation"])
     ) > min_dist_from_top_vertical:
         potential_bottom_from_drop_start.status = "fallback_drop_start"
         return potential_bottom_from_drop_start
-    valid_elevations_full_segment = segment["elevation"].dropna()
-    if not valid_elevations_full_segment.empty:
-        lowest_point_in_full_segment = segment.loc[
-            valid_elevations_full_segment.idxmin()
-        ]
-        if lowest_point_in_full_segment["elevation"] < top_elevation:
-            lowest_point_in_full_segment.status = "fallback_segment_lowest"
-            return lowest_point_in_full_segment
+
+    # --- Step 5: Segment-wide lowest, non-edge zone first ----------------------
+    non_edge_mask = ~segment["distance"].apply(in_edge_zone)
+    non_edge_seg = segment[non_edge_mask]
+    for try_seg in [non_edge_seg, segment]:
+        if try_seg.empty:
+            continue
+        valid = try_seg["elevation"].dropna()
+        if valid.empty:
+            continue
+        pt = try_seg.loc[valid.idxmin()].copy()
+        if float(pt["elevation"]) < top_elevation:
+            pt.status = "fallback_segment_lowest"
+            return pt
     return top_point
 
 
