@@ -1,6 +1,13 @@
 # MarsCONE: A toolbox for automatic detection of Martian pitted cones morphology 
 
-<img src="https://c5studio.pl/marscone/marscone-logo.png" width="200px">
+> **WARNING - Legacy CLI documentation (MarsCONE v1.x)**
+>
+> This README describes the earlier command-line (CLI) workflow located in `dev/`
+> (Generator/Finder/Analyzer modules).
+>
+> The current GUI-based workflow (MarsCONE 2.0 MVP) is in `../MVP/`.
+> For up-to-date GUI usage and tabs description, see `../README.md`.
+
 
 **MarsCONE** is a command-line tool for **automatic morphometric analysis of cone-like landforms** (e.g. volcanic cones, impact-related features) using digital elevation models (DEMs).
 
