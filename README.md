@@ -1,4 +1,4 @@
-# MarsCONE 2.0 
+# <img src="MVP/assets/app_icon.png" alt="MarsCONE icon" height="46" align="bottom" style="margin-bottom:-10px;" /> MarsCONE 2.0
 
 MarsCONE 2.0 is a PySide6 MVP desktop application for running the MarsCONE processing
 pipeline and reviewing its outputs in a single GUI. It is designed as a thin
