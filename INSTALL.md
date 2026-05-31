@@ -73,6 +73,9 @@ conda env create -f marscone_env.yml
 # Activate environment
 conda activate marscone
 
+# If environment already exists, update it to the current MVP-ready setup
+conda env update -n marscone -f marscone_env.yml --prune
+
 # Verify installation
 python -c "import geopandas; import numpy; import PySide6; print('Installation OK')"
 ```

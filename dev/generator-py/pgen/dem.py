@@ -46,7 +46,12 @@ def get_DEM(
     """
     base = config["paths"]["base"]
     dem_dir = join(base, config["paths"]["input"]["dem"])
-    dem_input_files = glob.glob(join(dem_dir, "*.tif"))
+    dem_input_files = sorted(
+        glob.glob(join(dem_dir, "*.tif"))
+        + glob.glob(join(dem_dir, "*.tiff"))
+        + glob.glob(join(dem_dir, "*.TIF"))
+        + glob.glob(join(dem_dir, "*.TIFF"))
+    )
 
     if not dem_input_files:
         print("No DEM files found in the input directory.")

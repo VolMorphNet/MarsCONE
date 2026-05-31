@@ -13,6 +13,18 @@ from shapely.geometry import LineString
 GREEN = "\033[92m"
 
 
+def _format_angle_deg(angle_deg: float, precision: int = 6) -> str:
+    """Format angle for stable ID/orientation strings.
+
+    Keeps decimal steps (e.g. 5.625deg) while trimming trailing zeros.
+    """
+    normalized = round(float(angle_deg) % 360.0, precision)
+    if normalized >= 360.0:
+        normalized = 0.0
+    text = f"{normalized:.{precision}f}".rstrip("0").rstrip(".")
+    return text or "0"
+
+
 def generate_transects(config):  # pylint: disable=too-many-locals
     """Generate radial transects from cone center points.
 
@@ -28,9 +40,11 @@ def generate_transects(config):  # pylint: disable=too-many-locals
     db_path = join(base, config["paths"]["db"])
     crs = config["crs"]
     length = config["parameters"]["transect_length"]
-    angle_step = config["parameters"].get(
-        "transect_angle_step", 90
+    angle_step = float(
+        config["parameters"].get("transect_angle_step", 90)
     )  # default 2 lines (90°)
+    if angle_step <= 0:
+        raise ValueError("transect_angle_step must be > 0")
 
     mode = config.get("mode", "masks")  # 'masks' or 'points'
 
@@ -44,7 +58,7 @@ def generate_transects(config):  # pylint: disable=too-many-locals
     gdf = gpd.read_file(db_path, layer=layer_name).to_crs(crs)
 
     transects = []
-    num_directions = int(360 / angle_step)
+    num_directions = max(1, int(round(360.0 / angle_step)))
     half_len = length / 2.0
 
     for idx, row in gdf.iterrows():
@@ -76,8 +90,9 @@ def generate_transects(config):  # pylint: disable=too-many-locals
             cone_id = f"{base_id}_{i+1}" if len(centroids) > 1 else base_id
 
             for j in range(num_directions):
-                angle_deg = j * angle_step
+                angle_deg = (j * angle_step) % 360.0
                 angle_rad = math.radians(angle_deg)
+                angle_label = _format_angle_deg(angle_deg)
 
                 dx = half_len * math.cos(angle_rad)
                 dy = half_len * math.sin(angle_rad)
@@ -88,9 +103,9 @@ def generate_transects(config):  # pylint: disable=too-many-locals
 
                 transects.append(
                     {
-                        "id": f"{cone_id}_{int(angle_deg)}deg",
+                        "id": f"{cone_id}_{angle_label}deg",
                         "cone_id": cone_id,
-                        "orientation": f"{int(angle_deg)}deg",
+                        "orientation": f"{angle_label}deg",
                         "geometry": line,
                     }
                 )

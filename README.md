@@ -52,7 +52,7 @@ Typical environment:
 
 ```bash
 conda activate marscone
-pip install PySide6
+conda env update -n marscone -f marscone_env.yml --prune
 python main.py
 ```
 
