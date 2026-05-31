@@ -204,6 +204,8 @@ Implemented in `marscone_mvp/tabs/app_tab.py`.
 This tab is the control center for project configuration, pipeline execution,
 results loading, diagnostics, and logs.
 
+![App tab](MVP/assets/app.png)
+
 #### Project group
 
 - `Dev root`: folder containing `generator-py`, `finder-py`, and `analyzer-py`.
@@ -234,6 +236,15 @@ Finder:
 - `Smoothing window`: smoothing window length in meters.
 - `SavGol polyorder`: polynomial order for smoothing.
 - `Bottom edge guard`: fraction of the outer profile treated as a no-pick edge zone.
+
+Finder smoothing tuning (important):
+
+- Start from `Enable profile smoothing = off` to verify baseline point detection.
+- Then enable smoothing and begin with `Smoothing window = 60-120 m` and `SavGol polyorder = 2` (or `3` for slightly stronger curvature fitting).
+- Increase `Smoothing window` gradually (for example by `10-20 m`) only when profile noise causes unstable picks.
+- If many `*_top` points move close to center or get `fallback_highest_in_segment`, smoothing is too strong for the current transect geometry.
+- As a practical rule, avoid windows close to full transect length; very large windows can merge two rim peaks into one broad center hump.
+- Keep `Bottom edge guard` near default (`0.12`) unless edge picks are clearly wrong in a specific dataset.
 
 Analyzer:
 
@@ -288,6 +299,8 @@ Implemented in `marscone_mvp/tabs/cross_section_tab.py` and backed by
 This tab generates figure-based cross-sections from generator profiles and
 finder picks, then lets you browse the produced figures and metrics.
 
+![Cross-section tab](MVP/assets/cross-section.png)
+
 #### Settings
 
 - `Profile dir`: usually `output/generator/profiles/whole`.
@@ -327,6 +340,8 @@ Implemented in `marscone_mvp/tabs/manual_fix_tab.py`.
 
 This tab allows interactive adjustment of the seven key finder points used along
 paired cross-section profiles.
+
+![Manual Fix tab](MVP/assets/manual-fix.png)
 
 #### Main controls
 
@@ -368,6 +383,8 @@ Implemented in `marscone_mvp/tabs/dem_overlay_tab.py` and backed by
 This tab creates hillshaded DEM figures with cone geometry overlays for visual
 review of analyzer outputs.
 
+![DEM overlay tab](MVP/assets/dem-overlay.png)
+
 #### Settings
 
 - `DEM dir (cropped)`: folder of cropped DEM rasters per cone.
@@ -407,6 +424,10 @@ Implemented in `marscone_mvp/tabs/complex_cones_tab.py` and backed by
 
 This tab handles grouped systems composed of multiple member cones. It is used
 for complex morphologies that should not be interpreted only as isolated cones.
+
+![Complex Cones tab](MVP/assets/complex-cones.png)
+
+![Complex DEM view](MVP/assets/complex-dem.png)
 
 #### Definition fields
 
@@ -461,6 +482,8 @@ Implemented in `marscone_mvp/tabs/elevation_explorer_tab.py`.
 This tab is intended for manual inspection of elevation profiles for individual
 cones, especially potentially breached or ambiguous cases.
 
+![Elevation Explorer tab](MVP/assets/elevation-explorer.png)
+
 #### Controls
 
 - `Cone ID`
@@ -494,6 +517,16 @@ Implemented in `marscone_mvp/tabs/graphs_tab.py`.
 
 This tab provides exploratory plots for one dataset. It reloads analyzer summary
 CSV files and visualizes them in several ways.
+
+![Graphs - scatter](MVP/assets/graphs-scatter.png)
+
+![Graphs - 2D distribution](MVP/assets/graphs-2d.png)
+
+![Graphs - correlation](MVP/assets/graphs-correlation.png)
+
+![Graphs - boxplot](MVP/assets/graphs-boxplot.png)
+
+![Graphs - violin](MVP/assets/graphs-violin.png)
 
 #### Shared idea
 
@@ -536,6 +569,12 @@ Implemented in `marscone_mvp/tabs/dataset_compare_tab.py` and backed by
 This tab compares multiple datasets against each other in a common metric space.
 It is intended for region-to-region, body-to-body, or method-to-method
 comparisons.
+
+![Dataset compare - scatter](MVP/assets/dataset-compare.png)
+
+![Dataset compare - heatmap](MVP/assets/dataset-compare-heatmap.png)
+
+![Dataset compare - PCA/embedding](MVP/assets/dataset-compare-pca.png)
 
 #### Main controls
 

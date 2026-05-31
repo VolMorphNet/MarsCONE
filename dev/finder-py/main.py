@@ -58,12 +58,6 @@ def main():  # pylint: disable=too-many-locals,too-many-branches,too-many-statem
 
     for transect_id, group in tqdm(grouped, desc="Detecting base and top"):
         profile = group.sort_values("distance").copy()
-        profile = apply_optional_smoothing(
-            profile,
-            enabled=smoothing_enabled,
-            window_m=smoothing_window_m,
-            polyorder=smoothing_polyorder,
-        )
         cone_id = profile["cone_id"].iloc[0]
         orientation = (
             profile["orientation"].iloc[0] if "orientation" in profile.columns else None
@@ -78,10 +72,18 @@ def main():  # pylint: disable=too-many-locals,too-many-branches,too-many-statem
         side1 = profile[profile["distance"] <= center_dist].copy()
         side2 = profile[profile["distance"] > center_dist].copy()
 
-        for i, side in enumerate([side1, side2]):
-            if len(side) < 5 or side["elevation"].isna().all():
+        for i, side_raw in enumerate([side1, side2]):
+            if len(side_raw) < 5 or side_raw["elevation"].isna().all():
                 continue
             suffix = get_side_prefix(direction, i)
+
+            # Smooth each flank separately to avoid cross-center blending of two rims.
+            side = apply_optional_smoothing(
+                side_raw,
+                enabled=smoothing_enabled,
+                window_m=smoothing_window_m,
+                polyorder=smoothing_polyorder,
+            )
 
             # Step 1: Initial top detection (search whole segment if bottom is not yet found)
             top = detect_top_by_drop(side, center_dist=center_dist)

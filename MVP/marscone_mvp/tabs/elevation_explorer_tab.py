@@ -540,7 +540,27 @@ class ElevationExplorerMixin:
                 if src.nodata is not None:
                     z = np.where(np.isclose(z, src.nodata), np.nan, z)
 
-                radius = max(half * 1.2, 500.0)
+                # Keep preview scale data-driven: follow transect length and DEM footprint
+                # around the cone center instead of enforcing a fixed large minimum radius.
+                base_radius = half * 1.2
+                min_radius = max(step * 8.0, 30.0)
+                radius = max(base_radius, min_radius)
+
+                bounds = src.bounds
+                if (
+                    bounds.left <= center_xy[0] <= bounds.right
+                    and bounds.bottom <= center_xy[1] <= bounds.top
+                ):
+                    available_radius = min(
+                        center_xy[0] - bounds.left,
+                        bounds.right - center_xy[0],
+                        center_xy[1] - bounds.bottom,
+                        bounds.top - center_xy[1],
+                    )
+                    if np.isfinite(available_radius) and available_radius > 0:
+                        radius = min(radius, float(available_radius) * 0.98)
+                        radius = max(radius, min_radius)
+
                 left = center_xy[0] - radius
                 right = center_xy[0] + radius
                 bottom = center_xy[1] - radius
