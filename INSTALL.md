@@ -74,7 +74,7 @@ conda env create -f marscone_env.yml
 conda activate marscone
 
 # Verify installation
-python -c "import geopandas; import numpy; print('Installation OK')"
+python -c "import geopandas; import numpy; import PySide6; print('Installation OK')"
 ```
 
 ### Option 2: Using pip requirements.txt (Advanced)
@@ -296,7 +296,7 @@ pytest tests/ -v --cov
 - **Install**: `conda env create -f marscone_env.yml`
 - **Includes**: 
   - System libraries (GDAL, Geopandas, Rasterio)
-  - Python packages (numpy, pandas, matplotlib, etc.)
+  - Python packages (numpy, pandas, matplotlib, PySide6 for MVP GUI, etc.)
   - Development tools (pytest, pylint, black, isort, flake8, nbconvert)
 
 ### requirements.txt (pip)

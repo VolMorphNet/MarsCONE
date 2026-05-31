@@ -56,6 +56,9 @@ pip install PySide6
 python main.py
 ```
 
+For detailed, platform-specific installation instructions and the recommended
+correct setup procedure, see [INSTALL.md](INSTALL.md).
+
 The codebase expects libraries that are already used throughout MarsCONE,
 including at least:
 
