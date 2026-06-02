@@ -87,6 +87,13 @@ SUMMARY_COLUMNS = [
     "cone_id",
     "quality_flag",
     "quality_reasons",
+    "n_transects",
+    "rmse_height_settle_ratio",
+    "rmse_height_ratio",
+    "rmse_bottom_width_ratio",
+    "rmse_bottom_elev_detrended",
+    "rmse_bottom_elev",
+    "rmse_center_to_top_diff",
     "height",
     "rmse_height",
     "base_major_diameter (WCO)",
@@ -98,8 +105,6 @@ SUMMARY_COLUMNS = [
     "WCR_WCO_ratio",
     "center_lowest_elev",
     "depth",
-    "n_transects",
-    "rmse_center_to_top_diff",
 ]
 
 MANUAL_FIX_SLOTS = [

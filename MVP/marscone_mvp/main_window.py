@@ -162,7 +162,7 @@ class MainWindow(
         self.manual_fix_slider_sync_in_progress = False
 
     def _init_table_models(self) -> None:
-        self.results_model = DataFrameTableModel()
+        self.results_model = DataFrameTableModel(float_precision=3)
         self.complex_pairs_df = pd.DataFrame()  # DataFrame for complex pairs
         self.complex_pairs_model = DataFrameTableModel()  # Model for complex pairs
         self.complex_summary_model = DataFrameTableModel(
