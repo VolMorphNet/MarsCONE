@@ -1,12 +1,12 @@
 # <sub><img src="MVP/assets/app_icon.png" alt="MarsCONE icon" height="44" /></sub> MarsCONE 2.0
 
-MarsCONE 2.0 is a PySide6 MVP desktop application for running the MarsCONE processing
+MarsCONE 2.0 is a PySide6 desktop application for running the MarsCONE processing
 pipeline and reviewing its outputs in a single GUI. It is designed as a thin
 desktop layer on top of the existing development modules in `../dev`, with extra
 tools for visual QA, manual correction, complex-cone aggregation, and
 cross-dataset comparison.
 
-The MVP does not execute code in `../dev` in place. Instead, it copies the
+The MarsCONE 2.0 does not execute code in `../dev` in place. Instead, it copies the
 selected module folders into a temporary runtime workspace, generates fresh
 `config.json` files for them, and runs the copied code there. This reduces the
 risk of accidental edits to the development sources and makes each run more
@@ -31,7 +31,7 @@ The application currently covers these workflows:
 
 The GUI is intentionally separated from the development code in `../dev`.
 
-When you run a module from the MVP:
+When you run a module from the MVP folder:
 
 1. the app reads the current form state,
 2. it builds a module-specific `config.json`,
@@ -45,7 +45,7 @@ This behavior is implemented in `marscone_mvp/pipeline.py`.
 ## Requirements
 
 Use the same Python environment that can already run the MarsCONE modules from
-`../dev`. The MVP also requires PySide6 and the geospatial/scientific stack used
+`../dev`. The MarsCONE 2.0 also requires PySide6 and the geospatial/scientific stack used
 by the project.
 
 Typical environment:
@@ -72,12 +72,12 @@ including at least:
 
 ## Demo Dataset With MarsCONE
 
-MVP uses the same demo dataset as the standard MarsCONE workflow: `test_set`.
+GUI uses the same demo dataset as the standard MarsCONE workflow: `test_set`.
 
-If you already downloaded demo data for MarsCONE, MVP can reuse it directly
+If you already downloaded demo data for MarsCONE, GUI can reuse it directly
 without downloading anything again. The default `base_path` now points to:
 
-- `../dev/data/test_set` relative to MVP root.
+- `../dev/data/test_set` relative to GUI root.
 
 If `test_set` is not available yet, download it exactly as in MarsCONE docs
 using the existing downloader script from the MarsCONE repository root:
@@ -700,7 +700,7 @@ The default state assumes:
 
 ## Output Conventions
 
-The MVP relies on a few output conventions across modules.
+The GUI relies on a few output conventions across modules.
 
 ### Generator outputs
 
@@ -731,7 +731,7 @@ The MVP relies on a few output conventions across modules.
 
 ## Important Caveats
 
-- The MVP is a desktop orchestration and QA layer, not a replacement for the
+- The GUI is a desktop orchestration and QA layer, not a replacement for the
 	underlying module code in `../dev`.
 - The GUI depends on the folder conventions described above. If a dataset uses
 	different names or locations, you must point the controls to the correct
@@ -763,7 +763,7 @@ The MVP relies on a few output conventions across modules.
 
 ## Summary
 
-The MVP now covers the full working loop around MarsCONE processing: run the
+The GUI now covers the full working loop around MarsCONE processing: run the
 pipeline, inspect outputs, correct problematic picks, validate results visually,
 aggregate complex systems, and compare datasets. If you use the directory and
 output conventions described here, each tab should map directly to one stage of
