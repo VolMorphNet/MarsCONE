@@ -629,6 +629,39 @@ class AppTabMixin:
         self.graphs_compare_show_reference_rows_check.setChecked(
             bool(dataset_compare.get("show_reference_rows", False))
         )
+        self.graphs_compare_scatter_title_edit.setText(
+            str(dataset_compare.get("scatter_title", ""))
+        )
+        self.graphs_compare_scatter_xlabel_edit.setText(
+            str(dataset_compare.get("scatter_xlabel", ""))
+        )
+        self.graphs_compare_scatter_ylabel_edit.setText(
+            str(dataset_compare.get("scatter_ylabel", ""))
+        )
+        self.graphs_compare_heatmap_title_edit.setText(
+            str(dataset_compare.get("heatmap_title", ""))
+        )
+        self.graphs_compare_heatmap_xlabel_edit.setText(
+            str(dataset_compare.get("heatmap_xlabel", ""))
+        )
+        self.graphs_compare_heatmap_ylabel_edit.setText(
+            str(dataset_compare.get("heatmap_ylabel", ""))
+        )
+        self.graphs_compare_heatmap_half_check.setChecked(
+            bool(dataset_compare.get("heatmap_half_matrix", False))
+        )
+        self.graphs_compare_embedding_title_edit.setText(
+            str(dataset_compare.get("embedding_title", ""))
+        )
+        self.graphs_compare_embedding_xlabel_edit.setText(
+            str(dataset_compare.get("embedding_xlabel", ""))
+        )
+        self.graphs_compare_embedding_ylabel_edit.setText(
+            str(dataset_compare.get("embedding_ylabel", ""))
+        )
+        self.graphs_compare_export_format_combo.setCurrentText(
+            str(dataset_compare.get("export_format", "PNG"))
+        )
         sources_text = str(dataset_compare.get("sources_text", "")).strip()
         if sources_text:
             self.graphs_compare_sources_edit.setPlainText(sources_text)
@@ -753,6 +786,17 @@ class AppTabMixin:
                 "hull_style": self.graphs_compare_hull_style_combo.currentText(),
                 "hull_alpha": self.graphs_compare_hull_alpha_spin.value(),
                 "show_reference_rows": self.graphs_compare_show_reference_rows_check.isChecked(),
+                "scatter_title": self.graphs_compare_scatter_title_edit.text().strip(),
+                "scatter_xlabel": self.graphs_compare_scatter_xlabel_edit.text().strip(),
+                "scatter_ylabel": self.graphs_compare_scatter_ylabel_edit.text().strip(),
+                "heatmap_title": self.graphs_compare_heatmap_title_edit.text().strip(),
+                "heatmap_xlabel": self.graphs_compare_heatmap_xlabel_edit.text().strip(),
+                "heatmap_ylabel": self.graphs_compare_heatmap_ylabel_edit.text().strip(),
+                "heatmap_half_matrix": self.graphs_compare_heatmap_half_check.isChecked(),
+                "embedding_title": self.graphs_compare_embedding_title_edit.text().strip(),
+                "embedding_xlabel": self.graphs_compare_embedding_xlabel_edit.text().strip(),
+                "embedding_ylabel": self.graphs_compare_embedding_ylabel_edit.text().strip(),
+                "export_format": self.graphs_compare_export_format_combo.currentText(),
             },
         }
 

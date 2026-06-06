@@ -500,11 +500,14 @@ class GraphsMixin:
         self.graphs_corr_method_combo.addItems(["Pearson", "Spearman"])
         self.graphs_corr_annotate_check = QCheckBox("Annotate values")
         self.graphs_corr_annotate_check.setChecked(True)
+        self.graphs_corr_half_matrix_check = QCheckBox("Half matrix (lower triangle)")
+        self.graphs_corr_half_matrix_check.setChecked(False)
         self.graphs_corr_cmap_combo = QComboBox()
         self.graphs_corr_cmap_combo.addItems(["RdBu_r", "coolwarm", "BrBG", "PiYG"])
         controls_row.addWidget(QLabel("Method:"))
         controls_row.addWidget(self.graphs_corr_method_combo)
         controls_row.addWidget(self.graphs_corr_annotate_check)
+        controls_row.addWidget(self.graphs_corr_half_matrix_check)
         controls_row.addWidget(QLabel("Cmap:"))
         controls_row.addWidget(self.graphs_corr_cmap_combo)
         controls_row.addStretch(1)
@@ -538,6 +541,9 @@ class GraphsMixin:
             lambda: self._set_graphs_corr_metric_checks(False)
         )
         self.graphs_corr_annotate_check.toggled.connect(
+            lambda _checked: self._refresh_graphs_metrics_corr()
+        )
+        self.graphs_corr_half_matrix_check.toggled.connect(
             lambda _checked: self._refresh_graphs_metrics_corr()
         )
         self.graphs_corr_cmap_combo.currentTextChanged.connect(
@@ -658,6 +664,7 @@ class GraphsMixin:
         output_dir = Path(self.base_path_edit.text().strip()) / "output" / "analyzer"
         output_dir.mkdir(parents=True, exist_ok=True)
         method_text = self.graphs_corr_method_combo.currentText().strip().lower() or "pearson"
+        show_half_matrix = self.graphs_corr_half_matrix_check.isChecked()
         graph_name = (
             f"fix_cross_metrics_correlation_{method_text}.png"
             if self.graphs_corr_use_manual_fix_check.isChecked()
@@ -765,7 +772,12 @@ class GraphsMixin:
             self.graphs_corr_export_pairs_button.setEnabled(not pairs_export_df.empty)
 
             cmap_name = self.graphs_corr_cmap_combo.currentText().strip() or "RdBu_r"
-            image = ax.imshow(corr.values, vmin=-1.0, vmax=1.0, cmap=cmap_name)
+            corr_for_plot = corr.values
+            if show_half_matrix:
+                mask = np.triu(np.ones_like(corr_for_plot, dtype=bool), k=1)
+                corr_for_plot = np.ma.array(corr_for_plot, mask=mask)
+
+            image = ax.imshow(corr_for_plot, vmin=-1.0, vmax=1.0, cmap=cmap_name)
             ax.set_xticks(range(len(corr.columns)))
             ax.set_xticklabels(corr.columns, rotation=35, ha="right")
             ax.set_yticks(range(len(corr.index)))
@@ -775,6 +787,8 @@ class GraphsMixin:
             if self.graphs_corr_annotate_check.isChecked():
                 for i in range(len(corr.index)):
                     for j in range(len(corr.columns)):
+                        if show_half_matrix and j > i:
+                            continue
                         val = float(corr.iloc[i, j])
                         p_val = float(p_matrix.iloc[i, j])
                         q_val = float(q_matrix.iloc[i, j])

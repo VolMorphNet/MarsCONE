@@ -214,6 +214,17 @@ def default_state(mvp_root: Path) -> dict:
             "hull_style": "Fill + outline",
             "hull_alpha": 0.14,
             "show_reference_rows": False,
+            "scatter_title": "",
+            "scatter_xlabel": "",
+            "scatter_ylabel": "",
+            "heatmap_title": "",
+            "heatmap_xlabel": "",
+            "heatmap_ylabel": "",
+            "heatmap_half_matrix": False,
+            "embedding_title": "",
+            "embedding_xlabel": "",
+            "embedding_ylabel": "",
+            "export_format": "PNG",
         },
     }
 

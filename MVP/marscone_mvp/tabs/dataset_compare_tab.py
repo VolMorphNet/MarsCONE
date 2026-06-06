@@ -287,6 +287,28 @@ class DatasetCompareMixin:
         self.graphs_compare_log_x_check.setChecked(False)
         self.graphs_compare_log_y_check = QCheckBox("Log Y")
         self.graphs_compare_log_y_check.setChecked(False)
+        self.graphs_compare_scatter_title_edit = QLineEdit()
+        self.graphs_compare_scatter_title_edit.setPlaceholderText("Title (auto)")
+        self.graphs_compare_scatter_xlabel_edit = QLineEdit()
+        self.graphs_compare_scatter_xlabel_edit.setPlaceholderText("X label (auto)")
+        self.graphs_compare_scatter_ylabel_edit = QLineEdit()
+        self.graphs_compare_scatter_ylabel_edit.setPlaceholderText("Y label (auto)")
+        self.graphs_compare_heatmap_title_edit = QLineEdit()
+        self.graphs_compare_heatmap_title_edit.setPlaceholderText("Heatmap title (auto)")
+        self.graphs_compare_heatmap_xlabel_edit = QLineEdit()
+        self.graphs_compare_heatmap_xlabel_edit.setPlaceholderText("Heatmap X label (auto)")
+        self.graphs_compare_heatmap_ylabel_edit = QLineEdit()
+        self.graphs_compare_heatmap_ylabel_edit.setPlaceholderText("Heatmap Y label (auto)")
+        self.graphs_compare_heatmap_half_check = QCheckBox("Half matrix (lower triangle)")
+        self.graphs_compare_heatmap_half_check.setChecked(False)
+        self.graphs_compare_embedding_title_edit = QLineEdit()
+        self.graphs_compare_embedding_title_edit.setPlaceholderText("Embedding title (auto)")
+        self.graphs_compare_embedding_xlabel_edit = QLineEdit()
+        self.graphs_compare_embedding_xlabel_edit.setPlaceholderText("Embedding X label (auto)")
+        self.graphs_compare_embedding_ylabel_edit = QLineEdit()
+        self.graphs_compare_embedding_ylabel_edit.setPlaceholderText("Embedding Y label (auto)")
+        self.graphs_compare_export_format_combo = QComboBox()
+        self.graphs_compare_export_format_combo.addItems(["PNG", "SVG", "PDF"])
         self.graphs_compare_embedding_point_size_spin = QSpinBox()
         self.graphs_compare_embedding_point_size_spin.setRange(8, 300)
         self.graphs_compare_embedding_point_size_spin.setValue(90)
@@ -351,6 +373,35 @@ class DatasetCompareMixin:
         self.graphs_compare_log_y_check.toggled.connect(
             lambda _checked: self._refresh_graphs_dataset_compare()
         )
+        self.graphs_compare_export_format_combo.currentTextChanged.connect(
+            lambda _text: self._refresh_graphs_dataset_compare()
+        )
+        for _edit in [
+            self.graphs_compare_scatter_title_edit,
+            self.graphs_compare_scatter_xlabel_edit,
+            self.graphs_compare_scatter_ylabel_edit,
+        ]:
+            _edit.editingFinished.connect(self._refresh_graphs_dataset_compare)
+            _edit.textChanged.connect(lambda _text: self._update_graphs_compare_scatter_labels())
+        for _edit in [
+            self.graphs_compare_heatmap_title_edit,
+            self.graphs_compare_heatmap_xlabel_edit,
+            self.graphs_compare_heatmap_ylabel_edit,
+        ]:
+            _edit.editingFinished.connect(self._refresh_graphs_dataset_compare)
+            _edit.textChanged.connect(lambda _text: self._update_graphs_compare_heatmap_labels())
+        self.graphs_compare_heatmap_half_check.toggled.connect(
+            lambda _checked: self._refresh_graphs_dataset_compare()
+        )
+        for _edit in [
+            self.graphs_compare_embedding_title_edit,
+            self.graphs_compare_embedding_xlabel_edit,
+            self.graphs_compare_embedding_ylabel_edit,
+        ]:
+            _edit.editingFinished.connect(self._refresh_graphs_dataset_compare)
+            _edit.textChanged.connect(
+                lambda _text: self._update_graphs_compare_embedding_labels()
+            )
         self.graphs_compare_embedding_marker_combo.currentTextChanged.connect(
             lambda _text: self._refresh_graphs_dataset_compare()
         )
@@ -373,6 +424,15 @@ class DatasetCompareMixin:
         scatter_controls_row.addSpacing(12)
         scatter_controls_row.addWidget(self.graphs_compare_log_x_check)
         scatter_controls_row.addWidget(self.graphs_compare_log_y_check)
+        scatter_controls_row.addSpacing(8)
+        scatter_controls_row.addWidget(QLabel("Title:"))
+        scatter_controls_row.addWidget(self.graphs_compare_scatter_title_edit)
+        scatter_controls_row.addWidget(QLabel("X label:"))
+        scatter_controls_row.addWidget(self.graphs_compare_scatter_xlabel_edit)
+        scatter_controls_row.addWidget(QLabel("Y label:"))
+        scatter_controls_row.addWidget(self.graphs_compare_scatter_ylabel_edit)
+        scatter_controls_row.addWidget(QLabel("Format:"))
+        scatter_controls_row.addWidget(self.graphs_compare_export_format_combo)
         scatter_controls_row.addStretch(1)
         scatter_sub_layout.addLayout(scatter_controls_row)
         scatter_sub_layout.addWidget(self.graphs_compare_canvas, 1)
@@ -380,6 +440,16 @@ class DatasetCompareMixin:
 
         heatmap_sub_tab = QWidget()
         heatmap_sub_layout = QVBoxLayout(heatmap_sub_tab)
+        heatmap_controls_row = QHBoxLayout()
+        heatmap_controls_row.addWidget(QLabel("Title:"))
+        heatmap_controls_row.addWidget(self.graphs_compare_heatmap_title_edit)
+        heatmap_controls_row.addWidget(QLabel("X label:"))
+        heatmap_controls_row.addWidget(self.graphs_compare_heatmap_xlabel_edit)
+        heatmap_controls_row.addWidget(QLabel("Y label:"))
+        heatmap_controls_row.addWidget(self.graphs_compare_heatmap_ylabel_edit)
+        heatmap_controls_row.addWidget(self.graphs_compare_heatmap_half_check)
+        heatmap_controls_row.addStretch(1)
+        heatmap_sub_layout.addLayout(heatmap_controls_row)
         heatmap_body_layout = QHBoxLayout()
         heatmap_body_layout.addWidget(self.graphs_compare_heatmap_info_label)
         heatmap_body_layout.addWidget(self.graphs_compare_heatmap_canvas, 1)
@@ -393,6 +463,13 @@ class DatasetCompareMixin:
         embedding_row.addWidget(self.graphs_compare_embedding_level_combo)
         embedding_row.addWidget(QLabel("Embedding method:"))
         embedding_row.addWidget(self.graphs_compare_embedding_method_combo)
+        embedding_row.addSpacing(8)
+        embedding_row.addWidget(QLabel("Title:"))
+        embedding_row.addWidget(self.graphs_compare_embedding_title_edit)
+        embedding_row.addWidget(QLabel("X label:"))
+        embedding_row.addWidget(self.graphs_compare_embedding_xlabel_edit)
+        embedding_row.addWidget(QLabel("Y label:"))
+        embedding_row.addWidget(self.graphs_compare_embedding_ylabel_edit)
         embedding_row.addStretch(1)
         embedding_layout.addLayout(embedding_row)
         embedding_layout.addWidget(self.graphs_compare_embedding_info_label)
@@ -505,6 +582,71 @@ class DatasetCompareMixin:
         self.graphs_compare_loadings_figure.tight_layout()
         self.graphs_compare_loadings_canvas.draw()
 
+    def _update_graphs_compare_scatter_labels(self) -> None:
+        """Apply scatter title/axis labels immediately in the visible canvas."""
+        if not hasattr(self, "graphs_compare_scatter_ax"):
+            return
+
+        x_metric = self.graphs_compare_x_combo.currentText().strip()
+        y_metric = self.graphs_compare_y_combo.currentText().strip()
+        log_x = self.graphs_compare_log_x_check.isChecked()
+        log_y = self.graphs_compare_log_y_check.isChecked()
+        scatter_title = self.graphs_compare_scatter_title_edit.text().strip()
+        scatter_xlabel = self.graphs_compare_scatter_xlabel_edit.text().strip()
+        scatter_ylabel = self.graphs_compare_scatter_ylabel_edit.text().strip()
+
+        default_xlabel = x_metric + (" [log]" if log_x else "")
+        default_ylabel = y_metric + (" [log]" if log_y else "")
+        ax_left = self.graphs_compare_scatter_ax
+        ax_left.set_xlabel(scatter_xlabel or default_xlabel)
+        ax_left.set_ylabel(scatter_ylabel or default_ylabel)
+        ax_left.set_title(scatter_title or "Multi-dataset scatter with centroids")
+        self.graphs_compare_canvas.draw_idle()
+
+    def _update_graphs_compare_heatmap_labels(self) -> None:
+        """Apply heatmap title/axis labels immediately in the visible canvas."""
+        if not hasattr(self, "graphs_compare_heatmap_ax"):
+            return
+
+        default_title = getattr(
+            self,
+            "_graphs_compare_heatmap_default_title",
+            "Centroid distance matrix (unitless z-space)",
+        )
+        default_xlabel = getattr(self, "_graphs_compare_heatmap_default_xlabel", "Dataset")
+        default_ylabel = getattr(self, "_graphs_compare_heatmap_default_ylabel", "Dataset")
+        heatmap_title = self.graphs_compare_heatmap_title_edit.text().strip()
+        heatmap_xlabel = self.graphs_compare_heatmap_xlabel_edit.text().strip()
+        heatmap_ylabel = self.graphs_compare_heatmap_ylabel_edit.text().strip()
+
+        ax_right = self.graphs_compare_heatmap_ax
+        ax_right.set_title(heatmap_title or default_title)
+        ax_right.set_xlabel(heatmap_xlabel or default_xlabel)
+        ax_right.set_ylabel(heatmap_ylabel or default_ylabel)
+        self.graphs_compare_heatmap_canvas.draw_idle()
+
+    def _update_graphs_compare_embedding_labels(self) -> None:
+        """Apply embedding title/axis labels immediately in the visible canvas."""
+        if not hasattr(self, "graphs_compare_embedding_ax"):
+            return
+
+        default_title = getattr(
+            self,
+            "_graphs_compare_embedding_default_title",
+            "Embedding (multi-metric)",
+        )
+        default_xlabel = getattr(self, "_graphs_compare_embedding_default_xlabel", "Component 1")
+        default_ylabel = getattr(self, "_graphs_compare_embedding_default_ylabel", "Component 2")
+        embedding_title = self.graphs_compare_embedding_title_edit.text().strip()
+        embedding_xlabel = self.graphs_compare_embedding_xlabel_edit.text().strip()
+        embedding_ylabel = self.graphs_compare_embedding_ylabel_edit.text().strip()
+
+        emb_ax = self.graphs_compare_embedding_ax
+        emb_ax.set_title(embedding_title or default_title)
+        emb_ax.set_xlabel(embedding_xlabel or default_xlabel)
+        emb_ax.set_ylabel(embedding_ylabel or default_ylabel)
+        self.graphs_compare_embedding_canvas.draw_idle()
+
     def _dataset_compare_output_dir(self) -> Path:
         base_text = self.base_path_edit.text().strip()
         base_path = Path(base_text) if base_text else self.mvp_root
@@ -530,6 +672,17 @@ class DatasetCompareMixin:
                 "hull_style": self.graphs_compare_hull_style_combo.currentText(),
                 "hull_alpha": self.graphs_compare_hull_alpha_spin.value(),
                 "show_reference_rows": self.graphs_compare_show_reference_rows_check.isChecked(),
+                "scatter_title": self.graphs_compare_scatter_title_edit.text().strip(),
+                "scatter_xlabel": self.graphs_compare_scatter_xlabel_edit.text().strip(),
+                "scatter_ylabel": self.graphs_compare_scatter_ylabel_edit.text().strip(),
+                "heatmap_title": self.graphs_compare_heatmap_title_edit.text().strip(),
+                "heatmap_xlabel": self.graphs_compare_heatmap_xlabel_edit.text().strip(),
+                "heatmap_ylabel": self.graphs_compare_heatmap_ylabel_edit.text().strip(),
+                "heatmap_half_matrix": self.graphs_compare_heatmap_half_check.isChecked(),
+                "embedding_title": self.graphs_compare_embedding_title_edit.text().strip(),
+                "embedding_xlabel": self.graphs_compare_embedding_xlabel_edit.text().strip(),
+                "embedding_ylabel": self.graphs_compare_embedding_ylabel_edit.text().strip(),
+                "export_format": self.graphs_compare_export_format_combo.currentText(),
             }
         )
         save_state(self.mvp_root, self.state)
@@ -712,6 +865,10 @@ class DatasetCompareMixin:
         hull_alpha = float(self.graphs_compare_hull_alpha_spin.value())
         log_x = self.graphs_compare_log_x_check.isChecked()
         log_y = self.graphs_compare_log_y_check.isChecked()
+        show_half_heatmap = self.graphs_compare_heatmap_half_check.isChecked()
+        export_format = (
+            self.graphs_compare_export_format_combo.currentText().strip().lower() or "png"
+        )
         embedding_point_size = int(self.graphs_compare_embedding_point_size_spin.value())
         embedding_marker = self.graphs_compare_embedding_marker_combo.currentText().strip() or "o"
 
@@ -728,9 +885,15 @@ class DatasetCompareMixin:
         safe_emb = re.sub(r"[^0-9A-Za-z_-]+", "_", embedding_method).strip("_") or "emb"
         safe_level = re.sub(r"[^0-9A-Za-z_-]+", "_", embedding_level).strip("_") or "level"
 
-        scatter_png = compare_dir / f"{mode_prefix}compare_scatter_{safe_x}_vs_{safe_y}.png"
-        heatmap_png = compare_dir / f"{mode_prefix}compare_heatmap_{safe_x}_vs_{safe_y}.png"
-        embedding_png = compare_dir / f"{mode_prefix}compare_embedding_{safe_level}_{safe_emb}.png"
+        scatter_plot = (
+            compare_dir / f"{mode_prefix}compare_scatter_{safe_x}_vs_{safe_y}.{export_format}"
+        )
+        heatmap_plot = (
+            compare_dir / f"{mode_prefix}compare_heatmap_{safe_x}_vs_{safe_y}.{export_format}"
+        )
+        embedding_plot = (
+            compare_dir / f"{mode_prefix}compare_embedding_{safe_level}_{safe_emb}.{export_format}"
+        )
         points_csv = compare_dir / f"{mode_prefix}compare_points_{safe_x}_vs_{safe_y}.csv"
         matrix_csv = (
             compare_dir
@@ -740,13 +903,18 @@ class DatasetCompareMixin:
         stats_compare_csv = compare_dir / f"{mode_prefix}compare_metrics_stats.csv"
         embedding_csv = compare_dir / f"{mode_prefix}compare_embedding_{safe_level}_{safe_emb}.csv"
         loadings_csv = compare_dir / f"{mode_prefix}compare_loadings_{safe_level}_{safe_emb}.csv"
+        save_kw: dict = {"bbox_inches": "tight", "format": export_format}
+        if export_format == "png":
+            save_kw["dpi"] = 200
+
+        export_fmt_upper = export_format.upper()
         self.graphs_compare_export_paths_edit.setPlainText(
             "\n".join(
                 [
                     f"Folder: {compare_dir}",
-                    f"Scatter PNG: {scatter_png.name}",
-                    f"Heatmap PNG: {heatmap_png.name}",
-                    f"Embedding PNG: {embedding_png.name}",
+                    f"Scatter {export_fmt_upper}: {scatter_plot.name}",
+                    f"Heatmap {export_fmt_upper}: {heatmap_plot.name}",
+                    f"Embedding {export_fmt_upper}: {embedding_plot.name}",
                     f"Points CSV: {points_csv.name}",
                     f"Centroid distance CSV: {matrix_csv.name}",
                     f"Similarity CSV: {similarity_csv.name}",
@@ -765,14 +933,14 @@ class DatasetCompareMixin:
             ax_right.set_axis_off()
             self.graphs_compare_source_label.setText("Source: no dataset lines")
             self.graphs_compare_figure.tight_layout()
-            self.graphs_compare_figure.savefig(scatter_png, dpi=200)
+            self.graphs_compare_figure.savefig(scatter_plot, **save_kw)
             self.graphs_compare_canvas.draw_idle()
             self.graphs_compare_heatmap_figure.tight_layout()
             self.graphs_compare_heatmap_canvas.draw_idle()
             emb_ax.text(0.5, 0.5, "No embedding", ha="center", va="center")
             emb_ax.set_axis_off()
             self.graphs_compare_embedding_figure.tight_layout()
-            self.graphs_compare_embedding_figure.savefig(embedding_png, dpi=200)
+            self.graphs_compare_embedding_figure.savefig(embedding_plot, **save_kw)
             self.graphs_compare_embedding_canvas.draw_idle()
             self.graphs_compare_stats_info_label.setText(
                 "Per-dataset stats: add at least one valid dataset."
@@ -821,14 +989,14 @@ class DatasetCompareMixin:
                 status += " | " + " ; ".join(failed[:3])
             self.graphs_compare_source_label.setText(status)
             self.graphs_compare_figure.tight_layout()
-            self.graphs_compare_figure.savefig(scatter_png, dpi=200)
+            self.graphs_compare_figure.savefig(scatter_plot, **save_kw)
             self.graphs_compare_canvas.draw_idle()
             self.graphs_compare_heatmap_figure.tight_layout()
             self.graphs_compare_heatmap_canvas.draw_idle()
             emb_ax.text(0.5, 0.5, "No embedding", ha="center", va="center")
             emb_ax.set_axis_off()
             self.graphs_compare_embedding_figure.tight_layout()
-            self.graphs_compare_embedding_figure.savefig(embedding_png, dpi=200)
+            self.graphs_compare_embedding_figure.savefig(embedding_plot, **save_kw)
             self.graphs_compare_embedding_canvas.draw_idle()
             self.graphs_compare_stats_info_label.setText(
                 "Per-dataset stats: no datasets could be loaded."
@@ -877,14 +1045,14 @@ class DatasetCompareMixin:
                 f"Source: loaded {len(loaded_frames)} datasets, but no valid metric pairs"
             )
             self.graphs_compare_figure.tight_layout()
-            self.graphs_compare_figure.savefig(scatter_png, dpi=200)
+            self.graphs_compare_figure.savefig(scatter_plot, **save_kw)
             self.graphs_compare_canvas.draw_idle()
             self.graphs_compare_heatmap_figure.tight_layout()
             self.graphs_compare_heatmap_canvas.draw_idle()
             emb_ax.text(0.5, 0.5, "No embedding", ha="center", va="center")
             emb_ax.set_axis_off()
             self.graphs_compare_embedding_figure.tight_layout()
-            self.graphs_compare_embedding_figure.savefig(embedding_png, dpi=200)
+            self.graphs_compare_embedding_figure.savefig(embedding_plot, **save_kw)
             self.graphs_compare_embedding_canvas.draw_idle()
             return
 
@@ -954,13 +1122,14 @@ class DatasetCompareMixin:
             ax_left.set_xscale("log")
         if log_y:
             ax_left.set_yscale("log")
-        ax_left.set_xlabel(x_metric + (" [log]" if log_x else ""))
-        ax_left.set_ylabel(y_metric + (" [log]" if log_y else ""))
-        ax_left.set_title("Multi-dataset scatter with centroids")
+        self._update_graphs_compare_scatter_labels()
         ax_left.grid(True, alpha=0.25, which="both" if (log_x or log_y) else "major")
         ax_left.legend(loc="best", fontsize=8)
 
         labels, distance_matrix = compute_scaled_centroid_distance_matrix(all_points)
+        self._graphs_compare_heatmap_default_title = "Centroid distance matrix (unitless z-space)"
+        self._graphs_compare_heatmap_default_xlabel = "Dataset"
+        self._graphs_compare_heatmap_default_ylabel = "Dataset"
         if len(labels) < 2:
             ax_right.text(
                 0.5,
@@ -974,8 +1143,12 @@ class DatasetCompareMixin:
                 "Distance matrix guide: add at least 2 datasets with valid metric points."
             )
         else:
-            heat = ax_right.imshow(distance_matrix, cmap="RdYlGn_r")
-            ax_right.set_title("Centroid distance matrix (unitless z-space)")
+            matrix_for_plot = distance_matrix
+            if show_half_heatmap:
+                mask = np.triu(np.ones_like(distance_matrix, dtype=bool), k=1)
+                matrix_for_plot = np.ma.array(distance_matrix, mask=mask)
+
+            heat = ax_right.imshow(matrix_for_plot, cmap="RdYlGn_r")
             ax_right.set_xticks(range(len(labels)))
             ax_right.set_xticklabels(labels, rotation=30, ha="right", fontsize=8)
             ax_right.set_yticks(range(len(labels)))
@@ -987,6 +1160,8 @@ class DatasetCompareMixin:
 
             for r in range(len(labels)):
                 for c in range(len(labels)):
+                    if show_half_heatmap and c > r:
+                        continue
                     ax_right.text(
                         c,
                         r,
@@ -1051,6 +1226,7 @@ class DatasetCompareMixin:
                 f"{far_pair_line}"
             )
             self.graphs_compare_heatmap_info_label.setText(info_html)
+            self._update_graphs_compare_heatmap_labels()
 
         if len(labels) >= 1:
             matrix_df = pd.DataFrame(distance_matrix, index=labels, columns=labels)
@@ -1097,6 +1273,11 @@ class DatasetCompareMixin:
             self.graphs_compare_embedding_info_label.setText(
                 f"Embedding summary: no embedding available for {embedding_method}"
             )
+            self._graphs_compare_embedding_default_title = (
+                f"{embedding_level_text} embedding ({method_used}, multi-metric)"
+            )
+            self._graphs_compare_embedding_default_xlabel = "Component 1"
+            self._graphs_compare_embedding_default_ylabel = "Component 2"
         else:
             emb_ax.set_axis_on()
             cmap = plt.cm.get_cmap("tab10", max(10, len(loaded_labels)))
@@ -1157,16 +1338,21 @@ class DatasetCompareMixin:
                         xytext=(6, 4),
                         fontsize=8,
                     )
-            emb_ax.set_title(
+            self._graphs_compare_embedding_default_title = (
                 f"{embedding_level_text} embedding ({method_used}, multi-metric)"
             )
             explained_ratio = embedding_meta.get("explained_variance_ratio", [])
             if method_used == "PCA" and len(explained_ratio) >= 2:
-                emb_ax.set_xlabel(f"Component 1 ({100.0 * float(explained_ratio[0]):.1f}% var)")
-                emb_ax.set_ylabel(f"Component 2 ({100.0 * float(explained_ratio[1]):.1f}% var)")
+                self._graphs_compare_embedding_default_xlabel = (
+                    f"Component 1 ({100.0 * float(explained_ratio[0]):.1f}% var)"
+                )
+                self._graphs_compare_embedding_default_ylabel = (
+                    f"Component 2 ({100.0 * float(explained_ratio[1]):.1f}% var)"
+                )
             else:
-                emb_ax.set_xlabel("Component 1")
-                emb_ax.set_ylabel("Component 2")
+                self._graphs_compare_embedding_default_xlabel = "Component 1"
+                self._graphs_compare_embedding_default_ylabel = "Component 2"
+            self._update_graphs_compare_embedding_labels()
             emb_ax.grid(True, alpha=0.25)
             top_pc1 = embedding_meta.get("top_loadings_pc1", [])
             top_pc2 = embedding_meta.get("top_loadings_pc2", [])
@@ -1209,16 +1395,16 @@ class DatasetCompareMixin:
 
         self.graphs_compare_source_label.setText(
             f"Loaded {len(loaded_frames)} datasets ({len(all_points)} points){failed_text}\n"
-            f"Saved: {scatter_png.name}, {heatmap_png.name}, {embedding_png.name}, "
+            f"Saved: {scatter_plot.name}, {heatmap_plot.name}, {embedding_plot.name}, "
             f"{similarity_csv.name}"
         )
 
         self.graphs_compare_figure.tight_layout()
-        self.graphs_compare_figure.savefig(scatter_png, dpi=200)
+        self.graphs_compare_figure.savefig(scatter_plot, **save_kw)
         self.graphs_compare_canvas.draw_idle()
         self.graphs_compare_heatmap_figure.tight_layout()
-        self.graphs_compare_heatmap_figure.savefig(heatmap_png, dpi=200)
+        self.graphs_compare_heatmap_figure.savefig(heatmap_plot, **save_kw)
         self.graphs_compare_heatmap_canvas.draw_idle()
         self.graphs_compare_embedding_figure.tight_layout()
-        self.graphs_compare_embedding_figure.savefig(embedding_png, dpi=200)
+        self.graphs_compare_embedding_figure.savefig(embedding_plot, **save_kw)
         self.graphs_compare_embedding_canvas.draw_idle()
