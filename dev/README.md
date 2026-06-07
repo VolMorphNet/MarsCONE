@@ -1,12 +1,13 @@
-# MarsCONE: A toolbox for automatic detection of Martian pitted cones morphology 
+# MarsCONE Core CLI: Generator, Finder, Analyzer
 
-> **WARNING - Legacy CLI documentation (MarsCONE v1.x)**
+> **Core CLI documentation**
 >
-> This README describes the earlier command-line (CLI) workflow located in `dev/`
-> (Generator/Finder/Analyzer modules).
+> This README describes the command-line processing workflow located in `dev/`:
+> Generator, Finder, and Analyzer.
 >
-> The current GUI-based workflow (MarsCONE 2.0 MVP) is in `../MVP/`.
-> For up-to-date GUI usage and tabs description, see `../README.md`.
+> The current GUI-based workflow (MarsCONE 2.0 MVP) is documented in
+> [../README.md](../README.md). The GUI uses these core modules as its processing
+> backend and adds orchestration, QA, manual correction, and comparison tools.
 
 
 **MarsCONE** is a command-line tool for **automatic morphometric analysis of cone-like landforms** (e.g. volcanic cones, impact-related features) using digital elevation models (DEMs).
@@ -36,18 +37,19 @@ The code is written in Python and uses standard geospatial libraries (GDAL, GeoP
 
 ## Additional documentation
 
-- Installation details and OS-specific notes: [INSTALL.md](INSTALL.md)
+- MarsCONE 2.0 GUI overview: [../README.md](../README.md)
+- Installation details and OS-specific notes: [../INSTALL.md](../INSTALL.md)
 - Pipeline runner usage: [PIPELINE_USAGE.md](PIPELINE_USAGE.md)
 - Expected outputs and file formats: [EXPECTED_OUTPUTS.md](EXPECTED_OUTPUTS.md)
 - Testing results summary: [TESTING_SUMMARY.md](TESTING_SUMMARY.md)
 - Code quality improvements: [QUALITY_IMPROVEMENTS.md](QUALITY_IMPROVEMENTS.md)
-- Contributing guidelines: [CONTRIBUTING.md](CONTRIBUTING.md)
+- Contributing guidelines: [../CONTRIBUTING.md](../CONTRIBUTING.md)
 
 ---
 
 ## 1. Installation
 
-> **Important:** use [INSTALL.md](INSTALL.md) as the primary installation reference.<br/>
+> **Important:** use [../INSTALL.md](../INSTALL.md) as the primary installation reference.<br/>
 > **Recommended for all fresh installations:** <br/>`conda env create -f marscone_env.yml` <br/>
 > `requirements.txt` is **not** a standalone installation method for a clean system.<br/>
 > Use `pip install -r requirements.txt` **only if** GDAL/OSGeo is already available in the environment (via Conda/Mamba or system packages).<br/>
@@ -72,6 +74,7 @@ From the repository root:
 ```bash
 conda env create -f marscone_env.yml
 conda activate marscone
+cd dev
 ```
 
 The marscone_env.yml file installs:
@@ -95,28 +98,33 @@ conda activate marscone
 conda install -c conda-forge gdal geopandas rasterio fiona pyproj shapely pandas numpy matplotlib scikit-image tqdm
 ```
 
-For OS-specific setup steps and pip-based installation alternatives, see [INSTALL.md](INSTALL.md).
+For OS-specific setup steps and pip-based installation alternatives, see
+[../INSTALL.md](../INSTALL.md).
 
 ## 2. Repository structure
 
 A minimal layout (simplified):
 
 ```bash
-marscone/
-├─ generator-py/
-│  ├─ main.py            # Generator CLI
-│  ├─ pgen.py/            # DEM cropping, transects, profiles (imported as `pgen`)
-│  └─ config.json        # Generator configuration
-├─ finder-py/
-│  ├─ main.py            # Finder CLI
-│  ├─ finder/             # Shape detections and smooth filter
-│  └─ config.json        # Finder configuration
-├─ analyzer-py/
-│  ├─ main.py            # Analyzer CLI
-│  ├─ analyzer/           # Basic functions
-│  └─ config.json        # Analyzer configuration
+MarsCONE/
+├─ README.md             # MarsCONE 2.0 GUI documentation
+├─ INSTALL.md            # Installation and environment setup
 ├─ marscone_env.yml      # Conda environment definition
-└─ data/                 # Input/Output data (Input - DEM, points, and Outputs)
+├─ MVP/                  # MarsCONE 2.0 desktop GUI
+└─ dev/                  # Core CLI workflow documented here
+   ├─ generator-py/
+   │  ├─ main.py         # Generator CLI
+   │  ├─ pgen/           # DEM cropping, transects, profiles
+   │  └─ config.json     # Generator configuration
+   ├─ finder-py/
+   │  ├─ main.py         # Finder CLI
+   │  ├─ finder/         # Shape detections and smooth filter
+   │  └─ config.json     # Finder configuration
+   ├─ analyzer-py/
+   │  ├─ main.py         # Analyzer CLI
+   │  ├─ analyzer/       # Analyzer functions
+   │  └─ config.json     # Analyzer configuration
+   └─ data/              # Demo/input/output data when using the CLI workflow
 ```
 
 **Important**: Each module reads its own config.json located in its folder:
@@ -158,11 +166,11 @@ Each point must have a separate ID. This ID will be used to define the results i
 ![MarsCONE input data](https://c5studio.pl/marscone/input-data.png)
 
 ### 3.2. Downloading the demo dataset
-A small demo dataset (`test_set`) is provided as a ZIP archive hosted externally on ZENODO repository (~183 MB zip file and ~450 MB unzipped).
+A small demo dataset (`test_set`) is provided as a ZIP archive hosted externally on Zenodo (~183 MB zip file and ~450 MB unzipped).
 
-Dowload demo set from Zenodo https://doi.org/10.5281/zenodo.17885902 or use script described below.
+Download the demo set from Zenodo: https://doi.org/10.5281/zenodo.17885902 or use the script described below.
 
-From the repository root, run:
+From the `dev/` folder, run:
 
 ```bash
 conda activate marscone
@@ -425,10 +433,12 @@ For file counts and exact paths used in the demo dataset, see [EXPECTED_OUTPUTS.
 
 ### 6.4. Running Generator
 
-From the repository root:
+From the `dev/` folder:
 ``` bash
 conda activate marscone
-python generator-py/main.py
+cd generator-py
+python main.py
+cd ..
 ```
 
 Example console output:<br/>
@@ -485,10 +495,12 @@ For output examples and structure, see [EXPECTED_OUTPUTS.md](EXPECTED_OUTPUTS.md
 
 ### 7.4. Running Finder
 
-From the repository root:
+From the `dev/` folder:
 ``` bash
 conda activate marscone
-python finder-py/main.py
+cd finder-py
+python main.py
+cd ..
 ```
 
 Example console output:<br/>
@@ -678,10 +690,12 @@ If export_geojson is true, additional GeoJSON files are written for quick visual
 
 ### 8.6. Running Analyzer
 
-From the repository root:
+From the `dev/` folder:
 ``` bash
 conda activate marscone
-python analyzer-py/main.py
+cd analyzer-py
+python main.py
+cd ..
 ```
 
 Example console output:
@@ -909,10 +923,10 @@ For each selected cone and axis, the notebook computes and annotates:
 - GDAL / PROJ errors<br/>
         Make sure you are using the marscone Conda environment created from marscone_env.yml.<br/>
         On some systems you may need to set PROJ_LIB and GDAL_DATA manually.
-  See [INSTALL.md](INSTALL.md) for OS-specific steps.
+  See [../INSTALL.md](../INSTALL.md) for OS-specific steps.
 - `ModuleNotFoundError: No module named 'osgeo'` after `pip install -r requirements.txt`<br/>
   `requirements.txt` does not install OS-level GDAL bindings by itself.<br/>
-  Use the Conda environment from `marscone_env.yml` or follow the pip prerequisites in [INSTALL.md](INSTALL.md).
+  Use the Conda environment from `marscone_env.yml` or follow the pip prerequisites in [../INSTALL.md](../INSTALL.md).
 - Generator produces no profiles<br/>
 	    Check generator-py/config.json paths (paths.base, paths.input.*)<br/>
 	    Make sure masks or points exist and the CRS matches the DEM (crs entry)
@@ -925,6 +939,3 @@ For each selected cone and axis, the notebook computes and annotates:
 - No hybrid centers are produced<br/>
 	    Ensure that a *.shp or *.gpkg with expert centers is placed in paths.input.centers<br/>
 	    Ensure the file contains a cone_id field compatible with the IDs used in the pipeline
-
-
-

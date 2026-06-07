@@ -39,8 +39,7 @@ pip install -r requirements.txt
 
 **Option B: Using conda (Recommended)**
 ```bash
-conda install -c conda-forge gdal geopandas
-# Or create full environment:
+# From the repository root:
 conda env create -f marscone_env.yml
 ```
 
@@ -48,9 +47,19 @@ conda env create -f marscone_env.yml
 
 **Option 1: Using conda (Recommended)**
 ```bash
-conda create -n marscone python=3.10
+# The libmamba solver is strongly recommended on Windows/WSL.
+conda config --set solver libmamba
+conda config --set channel_priority strict
+conda env create -f marscone_env.yml
 conda activate marscone
-conda install -c conda-forge gdal geopandas
+```
+
+If your Conda version does not support `solver libmamba`, install the solver first:
+
+```bash
+conda install -n base -c conda-forge conda-libmamba-solver
+conda config --set solver libmamba
+conda env create -f marscone_env.yml
 ```
 
 **Option 2: Using OSGeo4W**
@@ -65,9 +74,13 @@ conda install -c conda-forge gdal geopandas
 ```bash
 # Clone repository
 git clone https://github.com/VolMorphNet/MarsCONE.git
-cd marscone/dev
+cd MarsCONE
 
-# Create environment from file
+# Recommended on Windows/WSL if the classic Conda solver is slow
+conda config --set solver libmamba
+conda config --set channel_priority strict
+
+# Create environment from the repository-root file
 conda env create -f marscone_env.yml
 
 # Activate environment
@@ -94,7 +107,7 @@ brew install gdal geos proj
 
 # Step 2: Clone and setup
 git clone https://github.com/VolMorphNet/MarsCONE.git
-cd marscone/dev
+cd MarsCONE
 
 # Step 3: Create virtual environment
 python -m venv marscone-env
@@ -114,7 +127,7 @@ pip install -r requirements.txt
 ```
 
 **Why pip method is harder:**
-- `osgeo` (GDAL Python bindings) is not on PyPI
+- `osgeo` is the GDAL import package, not a standalone PyPI distribution name
 - Requires system-level GDAL compilation
 - macOS: needs Homebrew or OSGeo4W
 - Linux: needs apt packages
@@ -147,7 +160,7 @@ conda activate marscone
 
 # Install pip dependencies
 git clone https://github.com/VolMorphNet/MarsCONE.git
-cd marscone/dev
+cd MarsCONE
 pip install -r requirements.txt
 ```
 
@@ -156,33 +169,41 @@ pip install -r requirements.txt
 ```bash
 # Clone repository
 git clone https://github.com/VolMorphNet/MarsCONE.git
-cd marscone/dev
+cd MarsCONE
 
-# Create environment
+# Create environment from the repository root
 conda env create -f marscone_env.yml
 conda activate marscone
 
-# Install in development mode (if setup.py exists)
+# Install the legacy dev package in development mode
+cd dev
 pip install -e .
 ```
 
-### Option 5: Regular Installation
+### Option 5: Regular Installation of the Legacy Dev Package
 
 ```bash
+cd dev
 pip install -e .
 ```
 
-Note: this option also requires GDAL/OSGeo to be available in the environment beforehand.
+Note: the repository root does not currently contain packaging metadata. This option
+installs the legacy package defined in `dev/setup.py` and also requires GDAL/OSGeo
+to be available in the environment beforehand.
 
 ## Verification
 
 Test your installation:
 
 ```bash
-# Python script
-python -c "import geopandas; import analyzer; print('Installation OK')"
+# From the repository root:
+python -c "import geopandas; import osgeo; import rasterio; import PySide6; print('Installation OK')"
 
-# Command line - Download demo data
+# Launch the MVP GUI
+python MVP/main.py
+
+# Legacy CLI commands live in dev/
+cd dev
 python download_demo_data.py --help
 
 # Run all tests
@@ -198,6 +219,9 @@ pytest tests/ --cov=. --cov-report=html
 ### Testing the Pipeline
 
 ```bash
+# Legacy CLI pipeline commands live in dev/
+cd dev
+
 # Download demo data first
 python download_demo_data.py
 
@@ -247,6 +271,25 @@ conda install -c conda-forge geopandas shapely gdal
 pip install --no-cache-dir geopandas
 ```
 
+### Slow Conda Solver on Windows/WSL
+
+If `Collecting package metadata` finishes quickly but Conda spends a long time on
+`Solving environment`, switch to the libmamba solver:
+
+```bash
+conda config --set solver libmamba
+conda config --set channel_priority strict
+conda env create -f marscone_env.yml
+```
+
+For older Conda versions:
+
+```bash
+conda install -n base -c conda-forge conda-libmamba-solver
+conda config --set solver libmamba
+conda env create -f marscone_env.yml
+```
+
 ### Python Version Compatibility
 
 MarsCONE requires Python >= 3.8. Check your version:
@@ -266,7 +309,7 @@ For development:
 ```bash
 # Clone and setup with conda
 git clone https://github.com/VolMorphNet/MarsCONE.git
-cd marscone/dev
+cd MarsCONE
 conda env create -f marscone_env.yml
 conda activate marscone
 
@@ -276,6 +319,7 @@ source venv/bin/activate
 pip install -r requirements.txt
 
 # Install development dependencies
+cd dev
 pip install -e ".[dev]"
 
 # Enable pre-commit hooks (if available)
@@ -322,6 +366,18 @@ pytest tests/ -v --cov
 | Reproducing exact builds | Use `marscone_env.yml` |
 
 ## Quick Start After Installation
+
+From the repository root, the MVP GUI can be started with:
+
+```bash
+python MVP/main.py
+```
+
+The commands below refer to the legacy CLI workflow in `dev/`:
+
+```bash
+cd dev
+```
 
 ### 1. Download Demo Data
 
