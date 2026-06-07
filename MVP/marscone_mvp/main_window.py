@@ -1,4 +1,4 @@
-"""Qt main window for the MarsCONE MVP application.
+"""Qt main window for the MarsCONE 2.0 application.
 
 All tab logic lives in marscone_mvp/tabs/*.py mixin classes.
 MainWindow inherits from all of them via multiple inheritance.
@@ -116,7 +116,7 @@ class MainWindow(
     GraphsMixin,
     DatasetCompareMixin,
 ):
-    """Main application window for configuring, running, and reviewing MVP workflows."""
+    """Main application window for configuring, running, and reviewing workflows."""
 
     def __init__(self, mvp_root: Path) -> None:
         super().__init__()
@@ -127,7 +127,7 @@ class MainWindow(
         self._init_view_state()
         self._init_table_models()
 
-        self.setWindowTitle("MarsCONE MVP")
+        self.setWindowTitle("MarsCONE 2.0")
         self.resize(1280, 860)
 
         self._build_ui()
