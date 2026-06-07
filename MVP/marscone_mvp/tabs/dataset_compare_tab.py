@@ -309,6 +309,10 @@ class DatasetCompareMixin:
         self.graphs_compare_embedding_ylabel_edit.setPlaceholderText("Embedding Y label (auto)")
         self.graphs_compare_export_format_combo = QComboBox()
         self.graphs_compare_export_format_combo.addItems(["PNG", "SVG", "PDF"])
+        self.graphs_compare_scatter_export_ratio_combo = QComboBox()
+        self.graphs_compare_scatter_export_ratio_combo.addItems(
+            ["Auto (canvas)", "1:1", "4:3", "16:9", "3:2"]
+        )
         self.graphs_compare_embedding_point_size_spin = QSpinBox()
         self.graphs_compare_embedding_point_size_spin.setRange(8, 300)
         self.graphs_compare_embedding_point_size_spin.setValue(90)
@@ -376,6 +380,9 @@ class DatasetCompareMixin:
         self.graphs_compare_export_format_combo.currentTextChanged.connect(
             lambda _text: self._refresh_graphs_dataset_compare()
         )
+        self.graphs_compare_scatter_export_ratio_combo.currentTextChanged.connect(
+            lambda _text: self._refresh_graphs_dataset_compare()
+        )
         for _edit in [
             self.graphs_compare_scatter_title_edit,
             self.graphs_compare_scatter_xlabel_edit,
@@ -433,6 +440,8 @@ class DatasetCompareMixin:
         scatter_controls_row.addWidget(self.graphs_compare_scatter_ylabel_edit)
         scatter_controls_row.addWidget(QLabel("Format:"))
         scatter_controls_row.addWidget(self.graphs_compare_export_format_combo)
+        scatter_controls_row.addWidget(QLabel("Export ratio:"))
+        scatter_controls_row.addWidget(self.graphs_compare_scatter_export_ratio_combo)
         scatter_controls_row.addStretch(1)
         scatter_sub_layout.addLayout(scatter_controls_row)
         scatter_sub_layout.addWidget(self.graphs_compare_canvas, 1)
@@ -647,6 +656,40 @@ class DatasetCompareMixin:
         emb_ax.set_ylabel(embedding_ylabel or default_ylabel)
         self.graphs_compare_embedding_canvas.draw_idle()
 
+    def _save_scatter_with_ratio(
+        self,
+        output_path: Path,
+        save_kw: dict,
+        ratio_text: str,
+    ) -> None:
+        """Save scatter figure with optional export ratio without resizing UI canvas."""
+        fig = self.graphs_compare_figure
+        ratio = ratio_text.strip()
+        if not ratio or ratio.lower().startswith("auto") or ":" not in ratio:
+            fig.savefig(output_path, **save_kw)
+            return
+
+        left, right = [part.strip() for part in ratio.split(":", 1)]
+        try:
+            ratio_w = float(left)
+            ratio_h = float(right)
+        except ValueError:
+            fig.savefig(output_path, **save_kw)
+            return
+
+        if ratio_w <= 0 or ratio_h <= 0:
+            fig.savefig(output_path, **save_kw)
+            return
+
+        orig_size = fig.get_size_inches().copy()
+        export_height = float(orig_size[1])
+        export_width = export_height * ratio_w / ratio_h
+        fig.set_size_inches(export_width, export_height, forward=False)
+        try:
+            fig.savefig(output_path, **save_kw)
+        finally:
+            fig.set_size_inches(orig_size, forward=False)
+
     def _dataset_compare_output_dir(self) -> Path:
         base_text = self.base_path_edit.text().strip()
         base_path = Path(base_text) if base_text else self.mvp_root
@@ -683,6 +726,9 @@ class DatasetCompareMixin:
                 "embedding_xlabel": self.graphs_compare_embedding_xlabel_edit.text().strip(),
                 "embedding_ylabel": self.graphs_compare_embedding_ylabel_edit.text().strip(),
                 "export_format": self.graphs_compare_export_format_combo.currentText(),
+                "scatter_export_ratio": (
+                    self.graphs_compare_scatter_export_ratio_combo.currentText()
+                ),
             }
         )
         save_state(self.mvp_root, self.state)
@@ -869,6 +915,7 @@ class DatasetCompareMixin:
         export_format = (
             self.graphs_compare_export_format_combo.currentText().strip().lower() or "png"
         )
+        scatter_export_ratio = self.graphs_compare_scatter_export_ratio_combo.currentText().strip()
         embedding_point_size = int(self.graphs_compare_embedding_point_size_spin.value())
         embedding_marker = self.graphs_compare_embedding_marker_combo.currentText().strip() or "o"
 
@@ -913,6 +960,7 @@ class DatasetCompareMixin:
                 [
                     f"Folder: {compare_dir}",
                     f"Scatter {export_fmt_upper}: {scatter_plot.name}",
+                    f"Scatter ratio: {scatter_export_ratio or 'Auto (canvas)'}",
                     f"Heatmap {export_fmt_upper}: {heatmap_plot.name}",
                     f"Embedding {export_fmt_upper}: {embedding_plot.name}",
                     f"Points CSV: {points_csv.name}",
@@ -933,7 +981,7 @@ class DatasetCompareMixin:
             ax_right.set_axis_off()
             self.graphs_compare_source_label.setText("Source: no dataset lines")
             self.graphs_compare_figure.tight_layout()
-            self.graphs_compare_figure.savefig(scatter_plot, **save_kw)
+            self._save_scatter_with_ratio(scatter_plot, save_kw, scatter_export_ratio)
             self.graphs_compare_canvas.draw_idle()
             self.graphs_compare_heatmap_figure.tight_layout()
             self.graphs_compare_heatmap_canvas.draw_idle()
@@ -989,7 +1037,7 @@ class DatasetCompareMixin:
                 status += " | " + " ; ".join(failed[:3])
             self.graphs_compare_source_label.setText(status)
             self.graphs_compare_figure.tight_layout()
-            self.graphs_compare_figure.savefig(scatter_plot, **save_kw)
+            self._save_scatter_with_ratio(scatter_plot, save_kw, scatter_export_ratio)
             self.graphs_compare_canvas.draw_idle()
             self.graphs_compare_heatmap_figure.tight_layout()
             self.graphs_compare_heatmap_canvas.draw_idle()
@@ -1045,7 +1093,7 @@ class DatasetCompareMixin:
                 f"Source: loaded {len(loaded_frames)} datasets, but no valid metric pairs"
             )
             self.graphs_compare_figure.tight_layout()
-            self.graphs_compare_figure.savefig(scatter_plot, **save_kw)
+            self._save_scatter_with_ratio(scatter_plot, save_kw, scatter_export_ratio)
             self.graphs_compare_canvas.draw_idle()
             self.graphs_compare_heatmap_figure.tight_layout()
             self.graphs_compare_heatmap_canvas.draw_idle()
@@ -1400,7 +1448,7 @@ class DatasetCompareMixin:
         )
 
         self.graphs_compare_figure.tight_layout()
-        self.graphs_compare_figure.savefig(scatter_plot, **save_kw)
+        self._save_scatter_with_ratio(scatter_plot, save_kw, scatter_export_ratio)
         self.graphs_compare_canvas.draw_idle()
         self.graphs_compare_heatmap_figure.tight_layout()
         self.graphs_compare_heatmap_figure.savefig(heatmap_plot, **save_kw)

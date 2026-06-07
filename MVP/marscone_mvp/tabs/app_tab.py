@@ -309,13 +309,6 @@ class AppTabMixin:
         self.shape_threshold_spin.setToolTip(
             "Shape classification threshold used to separate flat, concave and convex profiles."
         )
-        self.buffer_distance_spin = QDoubleSpinBox()
-        self.buffer_distance_spin.setRange(0.0, 9999.0)
-        self.buffer_distance_spin.setSingleStep(0.1)
-        self.buffer_distance_spin.setToolTip(
-            "Analyzer buffer distance in meters used for geometry operations on detected cone "
-            "points."
-        )
         self.quality_preset_combo = QComboBox()
         self.quality_preset_combo.addItems(["mars", "terrestrial", "bathymetry"])
         self.quality_preset_combo.setToolTip(
@@ -428,7 +421,6 @@ class AppTabMixin:
         _qa_preset_layout.addWidget(self.set_qa_button)
 
         analyzer_form.addRow("Shape threshold", self.shape_threshold_spin)
-        analyzer_form.addRow("Buffer distance", self.buffer_distance_spin)
         analyzer_form.addRow("Quality preset", _qa_preset_widget)
         analyzer_form.addRow(self.use_manual_fix_check)
         analyzer_form.addRow(self.export_geojson_check)
@@ -559,7 +551,6 @@ class AppTabMixin:
         self._update_finder_smoothing_ui()
 
         self.shape_threshold_spin.setValue(analyzer["shape_threshold"])
-        self.buffer_distance_spin.setValue(analyzer["buffer_distance"])
         self.quality_preset_combo.setCurrentText(analyzer.get("quality_preset", "terrestrial"))
         quality_thresholds = analyzer.get("quality_thresholds", {})
         self.quality_n_transects_min_spin.setValue(
@@ -662,6 +653,9 @@ class AppTabMixin:
         self.graphs_compare_export_format_combo.setCurrentText(
             str(dataset_compare.get("export_format", "PNG"))
         )
+        self.graphs_compare_scatter_export_ratio_combo.setCurrentText(
+            str(dataset_compare.get("scatter_export_ratio", "Auto (canvas)"))
+        )
         sources_text = str(dataset_compare.get("sources_text", "")).strip()
         if sources_text:
             self.graphs_compare_sources_edit.setPlainText(sources_text)
@@ -734,7 +728,6 @@ class AppTabMixin:
             },
             "analyzer": {
                 "shape_threshold": self.shape_threshold_spin.value(),
-                "buffer_distance": self.buffer_distance_spin.value(),
                 "quality_preset": self.quality_preset_combo.currentText(),
                 "quality_thresholds": {
                     "n_transects_min": self.quality_n_transects_min_spin.value(),
@@ -797,6 +790,7 @@ class AppTabMixin:
                 "embedding_xlabel": self.graphs_compare_embedding_xlabel_edit.text().strip(),
                 "embedding_ylabel": self.graphs_compare_embedding_ylabel_edit.text().strip(),
                 "export_format": self.graphs_compare_export_format_combo.currentText(),
+                "scatter_export_ratio": self.graphs_compare_scatter_export_ratio_combo.currentText(),
             },
         }
 

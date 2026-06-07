@@ -160,7 +160,6 @@ def default_state(mvp_root: Path) -> dict:
         },
         "analyzer": {
             "shape_threshold": 1.0,
-            "buffer_distance": 1.0,
             "quality_preset": "terrestrial",
             "quality_thresholds": {
                 "n_transects_min": 6,
@@ -225,6 +224,7 @@ def default_state(mvp_root: Path) -> dict:
             "embedding_xlabel": "",
             "embedding_ylabel": "",
             "export_format": "PNG",
+            "scatter_export_ratio": "Auto (canvas)",
         },
     }
 

@@ -105,7 +105,6 @@ def build_analyzer_config(state: dict) -> dict:
             "overrides_csv": "output/figures/cross_sections/manual_point_overrides.csv",
         },
         "selected_profiles": [],
-        "buffer_distance": analyzer["buffer_distance"],
         "export_geojson": analyzer["export_geojson"],
         "export_summary_gpkg": analyzer["export_summary_gpkg"],
     }
