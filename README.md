@@ -1,5 +1,8 @@
 # <sub><img src="MVP/assets/app_icon.png" alt="MarsCONE icon" height="44" /></sub> MarsCONE 2.0
 
+MarsCONE is a tool for the automatic morphometric analysis of volcanic cones using digital elevation models (DEMs).
+The application recognizes volcanic features on Mars and on Earth.  
+
 MarsCONE 2.0 is a PySide6 desktop application for running the MarsCONE processing
 pipeline and reviewing its outputs in a single GUI. It is designed as a thin
 desktop layer on top of the existing core modules in `dev/`, with extra
@@ -81,6 +84,12 @@ including at least:
 - rasterio
 - shapely
 
+Video tutorial:
+
+[![Watch installation tutorial](https://img.youtube.com/vi/1dHleOnAUo8/hqdefault.jpg)](https://youtu.be/1dHleOnAUo8)
+
+Direct link: https://youtu.be/1dHleOnAUo8
+
 ## Demo Dataset With MarsCONE
 
 GUI uses the same demo dataset as the standard MarsCONE workflow: `test_set`.
@@ -114,6 +123,13 @@ dev/
 After download, set `Dev root` to your MarsCONE `dev` folder and use
 `Base path = <dev_root>/data/test_set` if it is not picked automatically.
 
+
+Video tutorial:
+
+[![Watch installation tutorial](https://img.youtube.com/vi/eWm7wjfa0WM/hqdefault.jpg)](https://youtu.be/eWm7wjfa0WM)
+
+Direct link: https://youtu.be/eWm7wjfa0WM
+
 ## Quick Start
 
 1. Create the environment using [INSTALL.md](INSTALL.md), then activate it with `conda activate marscone`.
@@ -125,6 +141,14 @@ After download, set `Dev root` to your MarsCONE `dev` folder and use
 7. Use the remaining tabs to inspect, correct, and compare outputs.
 
 For the command-line Generator/Finder/Analyzer workflow, see [dev/README.md](dev/README.md).
+
+
+Video tutorial:
+
+[![Watch installation tutorial](https://img.youtube.com/vi/yoiDoCZxY9g/hqdefault.jpg)](https://youtu.be/yoiDoCZxY9g)
+
+Direct link: https://youtu.be/yoiDoCZxY9g
+
 
 ## Required Directory Layout
 
