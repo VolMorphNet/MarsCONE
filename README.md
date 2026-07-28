@@ -304,6 +304,55 @@ Quality thresholds available through `Set QA...`:
 - bottom elevation RMSE warning thresholds,
 - center-to-top RMSE warning thresholds.
 
+Quality outputs written by Analyzer (`cone_summary.csv` / `fix_cone_summary.csv`):
+
+- `quality_flag`: overall class with fixed values `good`, `moderate`, `poor`.
+- `quality_score`: numeric mapping of `quality_flag` (`good=2`, `moderate=1`, `poor=0`).
+- `quality_reasons`: semicolon-separated reason codes that triggered warnings, or `none`.
+
+How the final quality class is assigned:
+
+- `poor`: at least 2 severe threshold exceedances.
+- `moderate`: exactly 1 severe exceedance, or at least 1 moderate exceedance.
+- `good`: no exceedances.
+
+Important:
+
+- Users can tune QA thresholds per dataset (preset + overrides), but output labels are fixed (`good`, `moderate`, `poor`).
+- There is no separate `failure_category` column in Analyzer outputs in this version; diagnostics are represented by `quality_reasons` codes and runtime logs.
+
+Reason codes currently used in `quality_reasons`:
+
+- `few_transects`
+- `height_ratio_mid`
+- `height_ratio_high`
+- `bottom_width_ratio_mid`
+- `bottom_width_ratio_high`
+- `bottom_elev_rmse_mid`
+- `bottom_elev_rmse_high`
+- `center_top_rmse_mid`
+- `center_top_rmse_high`
+- `none`
+
+Default QA threshold presets:
+
+| Metric | mars | terrestrial | bathymetry |
+|---|---:|---:|---:|
+| `n_transects_min` | 6 | 6 | 6 |
+| `height_ratio_mid` | 0.10 | 0.12 | 0.14 |
+| `height_ratio_high` | 0.22 | 0.25 | 0.28 |
+| `bottom_width_ratio_mid` | 0.12 | 0.15 | 0.18 |
+| `bottom_width_ratio_high` | 0.30 | 0.35 | 0.40 |
+| `bottom_elev_rmse_mid` | 8.0 | 12.0 | 18.0 |
+| `bottom_elev_rmse_high` | 25.0 | 35.0 | 50.0 |
+| `center_top_rmse_mid` | 8.0 | 10.0 | 12.0 |
+| `center_top_rmse_high` | 16.0 | 20.0 | 24.0 |
+
+Notes on uncertainty descriptors used by Analyzer:
+
+- Cone-level variability uses transect-based RMSE fields such as `rmse_height`, `rmse_bottom_width`, `rmse_top_elev`, `rmse_bottom_elev`, and `rmse_center_to_top_diff`.
+- Normalized and corrected descriptors include `rmse_height_ratio`, `rmse_height_settle_ratio`, `rmse_bottom_width_ratio`, `rmse_bottom_elev_detrended`, and `rmse_bottom_elev_tilt_amp`.
+
 #### Actions row
 
 - `Save settings`
